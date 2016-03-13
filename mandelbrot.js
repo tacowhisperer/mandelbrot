@@ -1,7 +1,53 @@
+// Determine argument options for including the HTML file and the names for the
+// PNG and HTML files
+var includeHTML = false,
+	fileName = false;
+
+// Mandelbrot default values
+var width = 5760,
+	height = 5280,
+	xmin = -2,
+	xmax = 0.55,
+	ycenter = 0,
+	maxMagnitude = 50,
+	iterations = 100;
+
+for (var i = 2; i < process.argv.length; i++) {
+	if (process.argv[i].match (/^--?html$/i))
+		includeHTML = true;
+
+	else if (process.argv[i].match (/^--?filename\./i))
+		fileName = process.argv[i].replace (/\/|\?|<|>|\\|:|\*|\||"|^--?filename\./g, '');
+
+	else if (process.argv[i].match (/^--?size\.\d+\D\d+$/i)) {
+		var dimensions = process.argv[i].match (/\d+/g);
+		width = dimensions[0];
+		height = dimensions[1];
+	}
+
+	else if (process.argv[i].match (/^--?xmin\.\-?\d+\.?\d*$/i))
+		xmin = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+
+	else if (process.argv[i].match (/^--?xmax\.\-?\d+\.?\d*$/i))
+		xmax = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+
+	else if (process.argv[i].match (/^--?ycenter\.\-?\d+\.?\d*$/i))
+		ycenter = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+
+	else if (process.argv[i].match (/^--?maxMagnitude\.\-?\d+\.?\d*$/i))
+		maxMagnitude = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+
+	else if (process.argv[i].match (/^--?iterations\.\d+$/i))
+		iterations = +process.argv[i].match (/\d+/)[0];
+}
+
 var fs = require ('fs'),
 	readline = require ('readline'),
-	filename = 'mandelbrot.html';
+	PNG = require ('pngjs').PNG,
+	htmlFile = fileName? fileName + '.html' : 'mandelbrot.html',
+	pngFile = fileName? fileName + '.png' : 'mandelbrot.png';
 
+// Used to map the ascii corresponding to a shade value range
 function calculatePixel (v) {
 	if      (v < 0.0333) return ' ';
 	else if (v < 0.0666) return '`';
@@ -38,16 +84,9 @@ function calculatePixel (v) {
 console.log ('\nConstructing the mandelbrot image...\n');
 
 var time0 = Date.now ();
-fs.writeFileSync(filename, '<pre style="word-wrap: break-word; white-space: pre; display: block; line-height: 0.8em; letter-spacing: 1.9px;">\n');
+if (includeHTML) fs.writeFileSync(htmlFile, '<pre style="word-wrap: break-word; white-space: pre; display: block; line-height: 0.8em; letter-spacing: 1.9px;">\n');
 
-var width = 1920,
-	height = 1760,
-	xmin = -2,
-	xmax = 0.55,
-	ycenter = 0,
-	maxMagnitude = 100,
-	iterations = 500;
-
+if (includeHTML) console.log ('    HTML file is included.');
 console.log ('    dimensions: ' + width + 'x' + height);
 console.log ('    iterations: ' + iterations + ' per pixel\n');
 console.log ('    escape mag: ' + maxMagnitude);
@@ -73,6 +112,18 @@ var working = ['⠋', '⠙', '⠚', '⠓'],
 	icon = 0,
 	interval = 100, // milliseconds
 	tIcon0 = Date.now ();
+
+// PNG containing stream
+var RGBA_COLOR_TYPE = 6;
+var options = {
+	width: width,
+	height: height,
+	colorType: RGBA_COLOR_TYPE,
+	filterType: -1
+};
+
+// Stores the PNG data
+var png = new PNG (options);
 
 for (var j = 0; j < height; j++) {
 	// Used to store set information in lieu of image data
@@ -105,8 +156,25 @@ for (var j = 0; j < height; j++) {
 		var mu = k + 1 - Math.log (0.5 * Math.log (val)) / Math.log (2);
 		mu /= iterations;
 
-		if (mu == iterations) imageRow += '#';
-		else imageRow += calculatePixel (mu);
+		// Append the new pixel to file
+		var idx = 4 * (width * j + i);
+		if (k == iterations) {
+			if (includeHTML) imageRow += '#';
+
+			png.data[idx]     = 0x0;  // red
+			png.data[idx + 1] = 0x0;  // green
+			png.data[idx + 2] = 0x0;  // blue
+			png.data[idx + 3] = 0xff; // alpha
+		}
+
+		else {
+			if (includeHTML) imageRow += calculatePixel (mu);
+
+			png.data[idx]     = Math.round (mu * 0xff); // red
+			png.data[idx + 1] = Math.round (mu * 0xff); // green
+			png.data[idx + 2] = Math.round (mu * 0xff); // blue
+			png.data[idx + 3] = 0xff; // alpha
+		}
 
 		// Force update percentage if time to update loading icon
 		if (Date.now () - tIcon0 >= interval) {
@@ -114,6 +182,7 @@ for (var j = 0; j < height; j++) {
 			while (percent.length < 6) percent += '0';
 			percent += '%';
 
+			// Refresh line rather than appending to it in the console
 			readline.moveCursor (process.stdout, 0, -1);
 			readline.clearLine (process.stdout, 0);
 
@@ -124,7 +193,7 @@ for (var j = 0; j < height; j++) {
 		}
 	}
 
-	fs.appendFileSync (filename, imageRow + '\n');
+	if (includeHTML) fs.appendFileSync (htmlFile, imageRow + '\n');
 
 	// Update the new percentage to the screen on every 3rd row to avoid unnecessary performance reduction
 	if (!(j % 3)) {
@@ -145,12 +214,19 @@ for (var j = 0; j < height; j++) {
 	}
 }
 
-// Close the HTML tag of the ascii file
-fs.appendFileSync (filename, '</pre>');
+// Close the HTML tag of the ascii file if necessary
+if (includeHTML) fs.appendFileSync (htmlFile, '</pre>');
 
 // Clear the previously logged line to log the final percent and time of execution
 readline.moveCursor (process.stdout, 0, -1);
 readline.clearLine (process.stdout, 0);
 
+png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
+	console.log ('\nThere was an error writing the PNG file');
+	console.log (err);
+});
+
 console.log('    100.000% - ' + (Math.round ((Date.now () - time0)) / 1000) + 's');
-console.log ('\nThe file "' + filename + '" was saved in ' + __dirname);
+console.log ('\nThe file' + (includeHTML? 's' : '') + ' "' +
+	pngFile + '"' + (includeHTML? ' and "' + htmlFile + '"' +
+		' were' : ' was') + ' successfully saved in ' + __dirname);
