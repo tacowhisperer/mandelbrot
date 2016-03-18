@@ -21,10 +21,8 @@ var width = 1440,
 	includeG = 0x0,
 	includeB = 0x0,
 	includeA = 0xff,
-	escapeR  = 0xff,
-	escapeG  = 0xff,
-	escapeB  = 0xff,
-	escapeA  = 0xff;
+
+	escapeGradient = [];
 
 // Gracefully exit node by letting the user know that the image might be corrupted
 process.on ('SIGINT', function () {
@@ -69,13 +67,12 @@ for (var i = 2; i < process.argv.length; i++) {
 		includeA = +('0x' + components[3]);
 	}
 
-	else if (process.argv[i].match (/^--?escapeRGB:#[0-9a-f]{6}$/i)) {
-		var components = process.argv[i].replace (/^--?escapeRGBA:#/i, '').match (/[0-9a-f]{2}/gi);
-		escapeR = +('0x' + components[0]);
-		escapeG = +('0x' + components[1]);
-		escapeB = +('0x' + components[2]);
-		escapeA = +('0x' + components[3]);
+	else if (process.argv[i].match (/^--?escapeGradient:\[[0-9a-f]{8}(,[0-9a-f]{8})*\]$/i)) {
+		escapeGradient = process.argv[i].replace (/^--?escapeGradient:/i, '').match (/[0-9a-f]{8}/gi);
 	}
+
+	else
+		console.log ('Unknown argument: "'.yellow + process.argv[i].red + '"'.yellow);
 }
 
 // Hot fix for negative y-center movement
@@ -83,40 +80,6 @@ ycenter *= -1;
 
 var htmlFile = fileName? fileName + '.html' : 'mandelbrot.html',
 	pngFile  = fileName? fileName + '.png' : 'mandelbrot.png';
-
-// Used to map the ascii corresponding to a shade value range
-function calculatePixel (v) {
-	if      (v < 0.0333) return ' ';
-	else if (v < 0.0666) return '`';
-	else if (v < 0.1000) return '.';
-	else if (v < 0.1333) return '-';
-	else if (v < 0.1666) return "'";
-	else if (v < 0.2000) return '^';
-	else if (v < 0.2333) return '"';
-	else if (v < 0.2666) return ':';
-	else if (v < 0.3000) return '!';
-	else if (v < 0.3333) return '+';
-	else if (v < 0.3666) return '?';
-	else if (v < 0.4000) return '[';
-	else if (v < 0.4333) return '|';
-	else if (v < 0.4666) return 't';
-	else if (v < 0.5000) return 'j';
-	else if (v < 0.5333) return 'u';
-	else if (v < 0.5666) return 'x';
-	else if (v < 0.6000) return 'z';
-	else if (v < 0.6333) return 'U';
-	else if (v < 0.6666) return 'O';
-	else if (v < 0.7000) return 'Y';
-	else if (v < 0.7333) return 'Z';
-	else if (v < 0.7666) return 'X';
-	else if (v < 0.8000) return 'p';
-	else if (v < 0.8333) return 'b';
-	else if (v < 0.8666) return '%';
-	else if (v < 0.9000) return 'k';
-	else if (v < 0.9333) return '@';
-	else if (v < 0.9666) return 'M';
-	else                 return '#';
-}
 
 console.log ('\nConstructing the mandelbrot image!\n'.green);
 
@@ -172,6 +135,9 @@ var options = {
 // Stores the PNG data
 var png = new PNG (options);
 
+// Calculates the color at a percentage given a color gradient array of strings
+var cg = new ColorGradient (escapeGradient);
+
 for (var j = 0; j < height; j++) {
 	// Used to store set information in lieu of image data
 	var imageRow = '',
@@ -217,10 +183,12 @@ for (var j = 0; j < height; j++) {
 		else {
 			if (includeHTML) imageRow += calculatePixel (mu);
 
-			png.data[idx]     = Math.round (mu * escapeR); // red
-			png.data[idx + 1] = Math.round (mu * escapeG); // green
-			png.data[idx + 2] = Math.round (mu * escapeB); // blue
-			png.data[idx + 3] = escapeA;                   // alpha
+			var rgbaColor = cg.rgbaAt (mu);
+
+			png.data[idx]     = rgbaColor[0]; // red
+			png.data[idx + 1] = rgbaColor[1]; // green
+			png.data[idx + 2] = rgbaColor[2]; // blue
+			png.data[idx + 3] = rgbaColor[3]; // alpha
 		}
 
 		// Force update percentage if time to update loading icon
@@ -236,7 +204,7 @@ for (var j = 0; j < height; j++) {
 			icon = (icon + 1) % working.length;
 			tIcon0 = Date.now ();
 
-			console.log ('    ' + working[icon] + '     ' + percent);
+			console.log (('    ' + working[icon] + '     ' + percent).yellow);
 		}
 	}
 
@@ -257,7 +225,7 @@ for (var j = 0; j < height; j++) {
 			tIcon0 = Date.now ();
 		}
 
-		console.log ('    ' + working[icon] + '     ' + percent);
+		console.log (('    ' + working[icon] + '     ' + percent).yellow);
 	}
 }
 
@@ -319,13 +287,30 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
 
 	var exeTimeInSeconds = (Date.now () - time0) / 1000,
 		exeTimeInMinutes = exeTimeInSeconds / 60,
-		exeTimeInHours   = exeTimeInMinutes / 24,
+		exeTimeInHours   = exeTimeInMinutes / 60,
+		exeTimeInDays    = exeTimeInHours / 24,
 
-		s = Math.round (1000 * (exeTimeInSeconds % 60)) / 1000,
-		m = Math.floor (exeTimeInSeconds / 60),
-		h = Math.floor (exeTimeInMinutes / 60),
-		d = Math.floor (exeTimeInHours   / 24);
+		s = ('' + (Math.round (1000 * exeTimeInSeconds) / 1000) % 60),
+		m = (exeTimeInMinutes % 60) >> 0,
+		h = (exeTimeInHours % 24) >> 0,
+		d = exeTimeInDays >> 0;
 
+	// Shorten any floating point error
+	var fErr = s.match (/\.\d{4}/);
+	if (fErr) {
+		var sInt = s.match (/^\d+\./)[0];
+
+		if (+fErr[0].charAt (4) > 4) {
+			var lastChar = +fErr[0].charAt (3);
+			lastChar++;
+			s = sInt + fErr[0].charAt (1) + fErr[0].charAt (2) + lastChar;
+		}
+
+		else
+			s = sInt + fErr[0].charAt (1) + fErr[0].charAt (2) + fErr[0].charAt (3);
+	}
+
+	// Concatenate the total time string for console.log
 	var timeString = (d? d + 'd ' : '') + (h? h + 'h ' : '') + (m? m + 'm ' : '') + s + 's (' +
 		(1000 * exeTimeInSeconds) + 'ms)';
 
@@ -334,3 +319,184 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
 		pngFile + '"' + (includeHTML? ' and "' + htmlFile + '"' +
 			' were' : ' was') + ' successfully saved in ' + __dirname).green);
 });
+
+// Used to map the ascii corresponding to a shade value range for the HTML file
+function calculatePixel (v) {
+	if      (v < 0.0333) return ' ';
+	else if (v < 0.0666) return '`';
+	else if (v < 0.1000) return '.';
+	else if (v < 0.1333) return '-';
+	else if (v < 0.1666) return "'";
+	else if (v < 0.2000) return '^';
+	else if (v < 0.2333) return '"';
+	else if (v < 0.2666) return ':';
+	else if (v < 0.3000) return '!';
+	else if (v < 0.3333) return '+';
+	else if (v < 0.3666) return '?';
+	else if (v < 0.4000) return '[';
+	else if (v < 0.4333) return '|';
+	else if (v < 0.4666) return 't';
+	else if (v < 0.5000) return 'j';
+	else if (v < 0.5333) return 'u';
+	else if (v < 0.5666) return 'x';
+	else if (v < 0.6000) return 'z';
+	else if (v < 0.6333) return 'U';
+	else if (v < 0.6666) return 'O';
+	else if (v < 0.7000) return 'Y';
+	else if (v < 0.7333) return 'Z';
+	else if (v < 0.7666) return 'X';
+	else if (v < 0.8000) return 'p';
+	else if (v < 0.8333) return 'b';
+	else if (v < 0.8666) return '%';
+	else if (v < 0.9000) return 'k';
+	else if (v < 0.9333) return '@';
+	else if (v < 0.9666) return 'M';
+	else                 return '#';
+}
+
+// Object used to calculate color gradient from a percent value v element of [0, 1]
+function ColorGradient (colorsArray) {
+	// Index values
+	var I = 0,
+		RED = I++,
+		L_STAR = RED,
+
+		GREEN = I++,
+		A_STAR = GREEN,
+
+		BLUE = I++,
+		B_STAR = BLUE,
+
+		ALPHA = I++;
+
+	// Always have at least one color to avoid division by 0
+	if (!colorsArray.length)
+		colorsArray = ['000000ff', 'ffffffff'];
+
+	else if (colorsArray.length == 1)
+		colorsArray = ['000000ff', colorsArray[0]];
+
+	
+	// Convert each color string to color arrays for faster manipulation
+	for (var i = 0; i < colorsArray.length; i++)
+		colorsArray[i] = colorsArray[i].match (/[0-9a-f]{2}/gi).map (function (s) {return +('0x' + s);});
+
+	var n = colorsArray.length,
+		interval = 1 / n,
+		colors = colorsArray;
+
+
+	// Returns the color array found between a specific interval
+	this.rgbaAt = function (v) {
+		for (var i = 1; i <= n; i++) {
+			if (i < n && v < i * interval) {
+				// Calculate the interpolation through CIE-L*ab color space
+				var a = (i - 1) / n,
+					b = i / n,
+					q = (v - a) / (b - a),
+					p = 1 - q,
+					rgba0 = colors[i - 1],
+					rgba1 = colors[i],
+
+					sL = x2L (r2X (rgba0)),
+					eL = x2L (r2X (rgba1)),
+
+					iL = p * sL[L_STAR] + q * eL[L_STAR],
+					ia = p * sL[A_STAR] + q * eL[A_STAR],
+					ib = p * sL[B_STAR] + q * eL[B_STAR],
+					al = p * rgba0[ALPHA] + q * rgba1[ALPHA];
+
+				return x2R (l2X ([iL, ia, ib, al]));
+			}
+
+			else if (i == n) {
+				var a = (i - 1) / n,
+					b = 1,
+					q = (v - a) / (b - a),
+					p = 1 - q,
+					rgba0 = colors[i - 1],
+					rgba1 = [includeR, includeG, includeB, includeA],
+
+					sL = x2L (r2X (rgba0)),
+					eL = x2L (r2X (rgba1)),
+
+					iL = p * sL[L_STAR] + q * eL[L_STAR],
+					ia = p * sL[A_STAR] + q * eL[A_STAR],
+					ib = p * sL[B_STAR] + q * eL[B_STAR],
+					al = p * rgba0[ALPHA] + q * rgba1[ALPHA];
+
+				return x2R (l2X ([iL, ia, ib, al]));
+			}
+		}
+
+		throw 'The value "' + v + '" was rejected from all intervals from 0-' + interval + ' to ' + ((n - 1) / n) + '-1';
+	};
+
+	// Returns the array corresponding to the XYZ values of the input RGB array
+	function r2X (rgb) {
+		var R = rgb[0] / 255,
+			G = rgb[1] / 255,
+			B = rgb[2] / 255;
+
+		R = 100 * (R > 0.04045? Math.pow ((R + 0.055) / 1.055, 2.4) : R / 12.92);
+		G = 100 * (G > 0.04045? Math.pow ((G + 0.055) / 1.055, 2.4) : G / 12.92);
+		B = 100 * (B > 0.04045? Math.pow ((B + 0.055) / 1.055, 2.4) : B / 12.92);
+
+		var X = R * 0.4124 + G * 0.3576 + B * 0.1805,
+			Y = R * 0.2126 + G * 0.7152 + B * 0.0722,
+			Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
+
+		return [X, Y, Z, rgb[3]];
+	}
+
+	// Returns the array corresponding to the CIE-L*ab values of the input XYZ array
+	function x2L (xyz) {
+		var X = xyz[0] / 95.047,
+			Y = xyz[1] / 100,
+			Z = xyz[2] / 108.883,
+			T = 1 / 3,
+			K = 16 / 116;
+
+		X = X > 0.008856? Math.pow (X, T) : (7.787 * X) + K;
+		Y = Y > 0.008856? Math.pow (Y, T) : (7.787 * Y) + K;
+		Z = Z > 0.008856? Math.pow (Z, T) : (7.787 * Z) + K;
+
+		var L = (116 * Y) - 16,
+			a = 500 * (X - Y),
+			b = 200 * (Y - Z);
+
+		return [L, a, b, xyz[3]];
+	}
+
+	// Returns the array corresponding to the XYZ values of the input CIE-L*ab array
+	function l2X (Lab) {
+		var Y = (Lab[0] + 16) / 116,
+			X = Lab[1] / 500 + Y,
+			Z = Y - Lab[2] / 200,
+			K = 16 / 116;
+
+		X = 95.047 * ((X * X * X) > 0.008856? X * X * X : (X - K) / 7.787);
+		Y = 100 * ((Y * Y * Y) > 0.008856? Y * Y * Y : (Y - K) / 7.787);
+		Z = 108.883 * ((Z * Z * Z) > 0.008856? Z * Z * Z : (Z - K) / 7.787);
+
+		return [X, Y, Z, Lab[3]];
+	}
+
+	// Returns the array corresponding to the RGB values of the input XYZ array
+	function x2R (xyz) {
+		var X = xyz[0] / 100,
+			Y = xyz[1] / 100,
+			Z = xyz[2] / 100,
+			T = 1 / 2.4;
+
+		var R = X *  3.2406 + Y * -1.5372 + Z * -0.4986,
+			G = X * -0.9689 + Y *  1.8758 + Z *  0.0415,
+			B = X *  0.0557 + Y * -0.2040 + Z *  1.0570;
+
+		R = 255 * (R > 0.0031308? 1.055 * Math.pow (R, T) - 0.055 : 12.92 * R);
+		G = 255 * (G > 0.0031308? 1.055 * Math.pow (G, T) - 0.055 : 12.92 * G);
+		B = 255 * (B > 0.0031308? 1.055 * Math.pow (B, T) - 0.055 : 12.92 * B);
+
+		return [R, G, B, xyz[3]];
+	}
+}
