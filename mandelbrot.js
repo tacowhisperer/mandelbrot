@@ -420,10 +420,10 @@ function ColorGradient (colorsArray) {
 					sL = x2L (r2X (rgba0)),
 					eL = x2L (r2X (rgba1)),
 
-					iL = p * sL[L_STAR] + q * eL[L_STAR],
-					ia = p * sL[A_STAR] + q * eL[A_STAR],
-					ib = p * sL[B_STAR] + q * eL[B_STAR],
-					al = p * rgba0[ALPHA] + q * rgba1[ALPHA];
+					iL = Math.round (p * sL[L_STAR] + q * eL[L_STAR]),
+					ia = Math.round (p * sL[A_STAR] + q * eL[A_STAR]),
+					ib = Math.round (p * sL[B_STAR] + q * eL[B_STAR]),
+					al = Math.round (p * rgba0[ALPHA] + q * rgba1[ALPHA]);
 
 				return x2R (l2X ([iL, ia, ib, al]));
 			}
