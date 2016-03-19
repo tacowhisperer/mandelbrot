@@ -7,11 +7,11 @@ Generates a PNG of the good ol' Mandy with Node.js
 For the default image with default settings, do `node mandelbrot.js`.
 
 #### Arguments
-**mandelbrot.js** can also take the following arguments (all are case insensitive):
+**mandelbrot.js** can also take the following arguments. Note that no arguments contain whitespaces. Those spaces are just artifacts of bolding certain variables to emphasize that those bolded parts can be any value that fits. All arguments are case insensitive.:
 * `--html` or `-html`
   * Also generate an HTML file with the Mandelbrot set encoded in text
 
-* `--filename:`**`FILE_NAME`** or `-filename:`**`FILE_NAME]`**
+* `--filename:`**`FILE_NAME`** or `-filename:`**`FILE_NAME`**
   * Make the output file name **`FILE_NAME`**.png and **`FILE_NAME`**.html if HTML is included
 
 * `--size:`**`NATURAL_NUM0`**`x`**`NATURAL_NUM1`** or `-size:`**`NATURAL_NUM0`**`x`**`NATURAL_NUM1`**
@@ -26,7 +26,7 @@ For the default image with default settings, do `node mandelbrot.js`.
 * `--iterations:`**`WHOLE_NUMBER`** or `-iterations:`**`WHOLE_NUMBER`**
   * Iterations of recursive calculation per pixel (more is more accurate but also longer to calculate)
 
-* `--includeRGBA:`**`STUVWXYZ`** or `-includeRGBA:`**`STUVWXYZ`** where **S**, **T**, **U**, **V**, **W**, **X**, **Y**, **Z** ∈ [0-f] in hex
+* `--includeRGBA:`**`STUVWXYZ`** or `-includeRGBA:`**`STUVWXYZ`** where `**S**, **T**, **U**, **V**, **W**, **X**, **Y**, **Z**` ∈ `[0-f]` in hex
   * Similar to CSS # color notation, only with an alpha value pair tagged at the end. Used as the include color for a given point of the mandelbrot set.
 
 * `--escapeGradient:`**`[STUVWXYZ(, GHIJKLMN, ...)]`**
