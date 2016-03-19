@@ -29,7 +29,7 @@ For the default image with default settings, do `node mandelbrot.js`.
 * `--includeRGBA:`**`STUVWXYZ`** or `-includeRGBA:`**`STUVWXYZ`** where **`S`**, **`T`**, **`U`**, **`V`**, **`W`**, **`X`**, **`Y`**, **`Z`** ∈ `[0-f]` in hex
   * Similar to CSS # color notation, only with an alpha value pair tagged at the end. Used as the include color for a given point of the mandelbrot set.
 
-* `--escapeGradient:`**`[STUVWXYZ(, GHIJKLMN, ...)]`**
+* `--escapeGradient:`**`[STUVWXYZ(,GHIJKLMN,...)]`**
   * Same color format as `includeRGBA`, but each color defined in the array is a stopping point for a certain escape speed. The more colors defined in this argument, the more rainbow-y the final image will appear
 
 ### About and Licensing
