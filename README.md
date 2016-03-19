@@ -15,7 +15,7 @@ For the default image with default settings, do `node mandelbrot.js`.
   * Make the output file name **`FILE_NAME`**.png and **`FILE_NAME`**.html if HTML is included
 
 * `--size:`**`NATURAL_NUM0`**`x`**`NATURAL_NUM1`** or `-size:`**`NATURAL_NUM0`**`x`**`NATURAL_NUM1`**
-  * Creates the PNG (and HTML if also generated) [NATURAL_NUM0] pixels wide and [NATURAL_NUM1] pixels tall
+  * Creates the PNG (and HTML if also generated) **`NATURAL_NUM0`** pixels wide and **`NATURAL_NUM1`** pixels tall
 
 * `--xmin:`**`X`**, `--xmax:`**`X`**, `--ycenter:`**`Y`** or `-xmin:`**`X`**, `-xmax:`**`X`**, `-ycenter:`**`Y`**
   * Used to change the viewport of the image. Because the resolution can be arbitrary, the `ymin` and `ymax` values are calculated internally to avoid stretching the image of the mandelbrot set.
