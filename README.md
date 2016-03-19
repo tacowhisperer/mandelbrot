@@ -26,7 +26,7 @@ For the default image with default settings, do `node mandelbrot.js`.
 * `--iterations:`**`WHOLE_NUMBER`** or `-iterations:`**`WHOLE_NUMBER`**
   * Iterations of recursive calculation per pixel (more is more accurate but also longer to calculate)
 
-* `--includeRGBA:`**`STUVWXYZ`** or `-includeRGBA:`**`STUVWXYZ`** where `**S**, **T**, **U**, **V**, **W**, **X**, **Y**, **Z**` ∈ `[0-f]` in hex
+* `--includeRGBA:`**`STUVWXYZ`** or `-includeRGBA:`**`STUVWXYZ`** where **`S`**, **`T`**, **`U`**, **`V`**, **`W`**, **`X`**, **`Y`**, **`Z`** ∈ `[0-f]` in hex
   * Similar to CSS # color notation, only with an alpha value pair tagged at the end. Used as the include color for a given point of the mandelbrot set.
 
 * `--escapeGradient:`**`[STUVWXYZ(, GHIJKLMN, ...)]`**
