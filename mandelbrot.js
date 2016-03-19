@@ -264,13 +264,13 @@ var finalAnimationInterval = setInterval(function () {
     readline.moveCursor (process.stdout, 0, -1);
     readline.clearLine (process.stdout, 0);
 
-    console.log ('    ' + working[icon++ % working.length] + '     Flushing data to disk' + dots);
+    console.log (('    ' + working[icon++ % working.length] + '     Flushing data to disk' + dots).yellow;
 }, interval);
 
 // Log that packing PNG data will begin
 readline.moveCursor (process.stdout, 0, -1);
 readline.clearLine (process.stdout, 0);
-console.log (('    Packing raw PNG data...').yellow);
+console.log (('🕐    Packing raw PNG data!').yellow);
 
 // Pipe the generated PNG information into the final output write stream
 png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
