@@ -30,7 +30,7 @@ process.on ('SIGINT', function () {
 	process.exit (0);
 });
 
-// Begin mandelbrot calculation loops
+// Process the arguments fed
 for (var i = 2; i < process.argv.length; i++) {
 	if (process.argv[i].match (/^--?html$/i))
 		includeHTML = true;
@@ -138,6 +138,8 @@ var png = new PNG (options);
 // Calculates the color at a percentage given a color gradient array of strings
 var cg = new ColorGradient (escapeGradient);
 
+
+// Begin mandelbrot calculation loops
 for (var j = 0; j < height; j++) {
 	// Used to store set information in lieu of image data
 	var imageRow = '',
