@@ -183,7 +183,7 @@ for (var j = 0; j < height; j++) {
         }
 
         else {
-            if (includeHTML) imageRow += calculatePixel (mu);
+            if (includeHTML) imageRow += asciiShadeAt (mu);
 
             var rgbaColor = cg.rgbaAt (mu);
 
@@ -200,13 +200,15 @@ for (var j = 0; j < height; j++) {
             percent += '%';
 
             // Refresh line rather than appending to it in the console
-            readline.moveCursor (process.stdout, 0, -1);
-            readline.clearLine (process.stdout, 0);
+            // readline.moveCursor (process.stdout, 0, -1);
+            // readline.clearLine (process.stdout, 0);
 
             icon = (icon + 1) % working.length;
             tIcon0 = Date.now ();
 
-            console.log (('    ' + working[icon] + '     ' + percent).yellow);
+            // console.log (('    ' + working[icon] + '     ' + percent).yellow);
+            readline.clearLine (process.stdout, 0);
+            process.stdout.write (('    ' + working[icon] + '     ' + percent + '\r').yellow);
         }
     }
 
@@ -218,8 +220,8 @@ for (var j = 0; j < height; j++) {
         while (percent.length < 6) percent += '0';
         percent += '%';
         
-        readline.moveCursor (process.stdout, 0, -1);
-        readline.clearLine (process.stdout, 0);
+        // readline.moveCursor (process.stdout, 0, -1);
+        // readline.clearLine (process.stdout, 0);
 
         // Update loading icon if interval time has passed
         if (Date.now () - tIcon0 >= interval) {
@@ -227,7 +229,9 @@ for (var j = 0; j < height; j++) {
             tIcon0 = Date.now ();
         }
 
-        console.log (('    ' + working[icon] + '     ' + percent).yellow);
+        // console.log (('    ' + working[icon] + '     ' + percent).yellow);
+        readline.clearLine (process.stdout, 0);
+        process.stdout.write (('    ' + working[icon] + '     ' + percent + '\r').yellow);
     }
 }
 
@@ -261,20 +265,26 @@ var finalAnimationInterval = setInterval(function () {
         }
     }
 
-    readline.moveCursor (process.stdout, 0, -1);
-    readline.clearLine (process.stdout, 0);
+    // readline.moveCursor (process.stdout, 0, -1);
+    // readline.clearLine (process.stdout, 0);
 
-    console.log (('    ' + working[icon++ % working.length] + '     Flushing data to disk' + dots).yellow);
+    // console.log (('    ' + working[icon++ % working.length] + '     Flushing data to disk' + dots).yellow);
+    readline.clearLine (process.stdout, 0);
+    process.stdout.write (('    ' + working[icon++ % working.length] + '     Flushing data to disk' + dots + '\r').yellow);
 }, interval);
 
 // Log that packing PNG data will begin
-readline.moveCursor (process.stdout, 0, -1);
+// readline.moveCursor (process.stdout, 0, -1);
+// readline.clearLine (process.stdout, 0);
+// console.log (('⌛    Packing raw PNG data. Please wait!').yellow);
 readline.clearLine (process.stdout, 0);
-console.log (('🕐    Packing raw PNG data!').yellow);
+process.stdout.write (('    ⌛   Packing raw PNG data. Please wait!' + '\r').yellow);
 
 // Pipe the generated PNG information into the final output write stream
 png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
-    console.log (('\nThere was an error writing the PNG file').red);
+    readline.clearLine (process.stdout, 0);
+    console.log ('    ✖'.red);
+    console.log (('\nThere was an error writing the PNG file.').red);
     console.log (('' + err).red);
 
     if (includeHTML) 
@@ -284,7 +294,7 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
     clearInterval (finalAnimationInterval);
 
     // Clear the previously logged line to log the final percent and time of execution
-    readline.moveCursor (process.stdout, 0, -1);
+    // readline.moveCursor (process.stdout, 0, -1);
     readline.clearLine (process.stdout, 0);
 
     var exeTimeInSeconds = (Date.now () - time0) / 1000,
@@ -314,7 +324,7 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
 
     // Concatenate the total time string for console.log
     var timeString = (d? d + 'd ' : '') + (h? h + 'h ' : '') + (m? m + 'm ' : '') + s + 's (' +
-        (1000 * exeTimeInSeconds) + 'ms)';
+        Math.round (1000 * exeTimeInSeconds) + 'ms)';
 
     console.log (('    100.000% - ' + timeString).green);
     console.log (('\nThe file' + (includeHTML? 's' : '') + ' "' +
@@ -323,7 +333,7 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
 });
 
 // Used to map the ascii corresponding to a shade value range for the HTML file
-function calculatePixel (v) {
+function asciiShadeAt (v) {
     if      (v < 0.0333) return ' ';
     else if (v < 0.0666) return '`';
     else if (v < 0.1000) return '.';
