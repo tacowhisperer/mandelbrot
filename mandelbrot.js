@@ -24,11 +24,21 @@ var width = 1440,
 
     escapeGradient = [];
 
+// Used to prevent excessively long terminal logs
+var cRet = '\r',
+    isWindows = false;
+if (process.platform.match (/^win/i)) {
+    cRet = '';
+    isWindows = true;
+}
+
+
 // Gracefully exit node by letting the user know that the image might be corrupted
 process.on ('SIGINT', function () {
     console.log ('\nThe current process has been terminated. Note that the files might be corrupted.');
     process.exit (0);
 });
+
 
 // Process the arguments fed
 for (var i = 2; i < process.argv.length; i++) {
@@ -115,6 +125,11 @@ var ymin = ycenter - yHalfHeight,
 console.log (('          ymin: ' + ymin).magenta);
 console.log (('          ymax: ' + ymax + '\n\n').magenta);
 
+// Save the cursor position if on Windows because Windows sucks
+if (isWindows) process.stdout.write ('\033[s');
+
+
+// Square the magnitude to avoid square rooting when checking the escape magnitude
 maxMagnitude *= maxMagnitude;
 
 // Used for animation purposes
@@ -199,16 +214,13 @@ for (var j = 0; j < height; j++) {
             while (percent.length < 6) percent += '0';
             percent += '%';
 
-            // Refresh line rather than appending to it in the console
-            // readline.moveCursor (process.stdout, 0, -1);
-            // readline.clearLine (process.stdout, 0);
-
             icon = (icon + 1) % working.length;
             tIcon0 = Date.now ();
 
-            // console.log (('    ' + working[icon] + '     ' + percent).yellow);
+            // Refresh line rather than appending to it in the console
+            if (isWindows) process.stdout.write ('\0338');
             readline.clearLine (process.stdout, 0);
-            process.stdout.write (('    ' + working[icon] + '     ' + percent + '\r').yellow);
+            process.stdout.write (('    ' + working[icon] + '     ' + percent + cRet).yellow);
         }
     }
 
@@ -219,9 +231,6 @@ for (var j = 0; j < height; j++) {
         var percent = Math.round(100 * 1000 * (j / height + i / width / height)) / 1000 + '';
         while (percent.length < 6) percent += '0';
         percent += '%';
-        
-        // readline.moveCursor (process.stdout, 0, -1);
-        // readline.clearLine (process.stdout, 0);
 
         // Update loading icon if interval time has passed
         if (Date.now () - tIcon0 >= interval) {
@@ -229,9 +238,9 @@ for (var j = 0; j < height; j++) {
             tIcon0 = Date.now ();
         }
 
-        // console.log (('    ' + working[icon] + '     ' + percent).yellow);
+        if (isWindows) process.stdout.write ('\0338');
         readline.clearLine (process.stdout, 0);
-        process.stdout.write (('    ' + working[icon] + '     ' + percent + '\r').yellow);
+        process.stdout.write (('    ' + working[icon] + '     ' + percent + cRet).yellow);
     }
 }
 
@@ -265,23 +274,20 @@ var finalAnimationInterval = setInterval(function () {
         }
     }
 
-    // readline.moveCursor (process.stdout, 0, -1);
-    // readline.clearLine (process.stdout, 0);
-
-    // console.log (('    ' + working[icon++ % working.length] + '     Flushing data to disk' + dots).yellow);
+    if (isWindows) process.stdout.write ('\0338');
     readline.clearLine (process.stdout, 0);
-    process.stdout.write (('    ' + working[icon++ % working.length] + '     Flushing data to disk' + dots + '\r').yellow);
+    process.stdout.write (('    ' + working[icon++ % working.length] + '     Flushing data to disk' + dots + cRet).yellow);
+
 }, interval);
 
 // Log that packing PNG data will begin
-// readline.moveCursor (process.stdout, 0, -1);
-// readline.clearLine (process.stdout, 0);
-// console.log (('⌛    Packing raw PNG data. Please wait!').yellow);
+if (isWindows) process.stdout.write ('\0338');
 readline.clearLine (process.stdout, 0);
-process.stdout.write (('    ⌛   Packing raw PNG data. Please wait!' + '\r').yellow);
+process.stdout.write (('    ⌛   Packing raw PNG data. Please wait!' + cRet).yellow);
 
 // Pipe the generated PNG information into the final output write stream
 png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
+    if (isWindows) process.stdout.write ('\0338');
     readline.clearLine (process.stdout, 0);
     console.log ('    ✖'.red);
     console.log (('\nThere was an error writing the PNG file.').red);
@@ -294,7 +300,7 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
     clearInterval (finalAnimationInterval);
 
     // Clear the previously logged line to log the final percent and time of execution
-    // readline.moveCursor (process.stdout, 0, -1);
+    if (isWindows) process.stdout.write ('\0338');
     readline.clearLine (process.stdout, 0);
 
     var exeTimeInSeconds = (Date.now () - time0) / 1000,
