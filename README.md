@@ -7,7 +7,7 @@ Generates a PNG of the good ol' Mandy with Node.js
 For the default image with default settings, do `node mandelbrot.js`.
 
 #### Arguments
-**mandelbrot.js** can also take the following arguments. Note that no arguments contain whitespaces. Those spaces are just artifacts of bolding certain variables to emphasize that those bolded parts can be any value that fits. All arguments are case insensitive.:
+**mandelbrot.js** can also take the following arguments. **NO ARGUMENTS CONTAIN SPACES.** Those spaces are just artifacts of bolding certain variables to emphasize that those bolded parts can be any value that fits. All arguments are case insensitive.:
 * `--html` or `-html`
   * Also generate an HTML file with the Mandelbrot set encoded in text
 
