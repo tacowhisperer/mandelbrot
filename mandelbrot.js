@@ -14,7 +14,7 @@ var width = 1440,
     xmin = -2,
     xmax = 0.55,
     ycenter = 0,
-    maxMagnitude = 50,
+    maxMagnitude = 2,
     iterations = 150,
 
     includeR = 0x0,
