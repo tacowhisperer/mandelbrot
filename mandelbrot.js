@@ -33,13 +33,6 @@ if (process.platform.match (/^win/i)) {
 }
 
 
-// Gracefully exit node by letting the user know that the image might be corrupted
-process.on ('SIGINT', function () {
-    console.log ('\nThe current process has been terminated. Note that the files might be corrupted.');
-    process.exit (0);
-});
-
-
 // Process the arguments fed
 for (var i = 2; i < process.argv.length; i++) {
     if (process.argv[i].match (/^--?html$/i))
@@ -153,6 +146,12 @@ var png = new PNG (options);
 // Calculates the color at a percentage given a color gradient array of strings
 var cg = new ColorGradient (escapeGradient);
 
+// Used to calculate estimated time remaining
+var previousPercent  = 0, 
+    previousSpeed    = 0,
+    averageSpeed     = 0,
+    etrMS            = 1e6,
+    SMOOTHING_FACTOR = 0.005;
 
 // Begin mandelbrot calculation loops
 for (var j = 0; j < height; j++) {
@@ -210,17 +209,28 @@ for (var j = 0; j < height; j++) {
 
         // Force update percentage if time to update loading icon
         if (Date.now () - tIcon0 >= interval) {
-            var percent = Math.round(100 * 1000 * (py + px / height)) / 1000 + '';
+            var percent = Math.round(100 * 1000 * (py + px / height)) / 1000,
+                percentNum = percent,
+                speed = (percentNum - previousPercent) / interval;
+
+            percent += '';
             while (percent.length < 6) percent += '0';
             percent += '%';
 
             icon = (icon + 1) % working.length;
             tIcon0 = Date.now ();
 
+            averageSpeed = SMOOTHING_FACTOR * speed + (1 - SMOOTHING_FACTOR) * averageSpeed;
+            etrMS = (100 - percentNum) / averageSpeed;
+
             // Refresh line rather than appending to it in the console
             if (isWindows) process.stdout.write ('\0338');
             readline.clearLine (process.stdout, 0);
-            process.stdout.write (('    ' + working[icon] + '     ' + percent + cRet).yellow);
+            process.stdout.write (('    ' + working[icon] + '     ' + percent + ' - ' +
+                toReadableTime (etrMS) + ' ETA' + cRet).yellow);
+
+            // Save the new percent as the old percent
+            previousPercent = Math.round(100 * 1000 * (py + px / height)) / 1000;
         }
     }
 
@@ -228,19 +238,30 @@ for (var j = 0; j < height; j++) {
 
     // Update the new percentage to the screen on every 3rd row to avoid unnecessary performance reduction
     if (!(j % 3)) {
-        var percent = Math.round(100 * 1000 * (j / height + i / width / height)) / 1000 + '';
+        var percent = Math.round(100 * 1000 * (j / height + i / width / height)) / 1000,
+            percentNum = percent,
+            speed = (percent - previousPercent) / interval;
+
+        percent += '';
         while (percent.length < 6) percent += '0';
         percent += '%';
 
-        // Update loading icon if interval time has passed
+        // Update loading icon and etr if interval time has passed
         if (Date.now () - tIcon0 >= interval) {
             icon = (icon + 1) % working.length;
             tIcon0 = Date.now ();
+
+            averageSpeed = SMOOTHING_FACTOR * speed + (1 - SMOOTHING_FACTOR) * averageSpeed;
+            etrMS = (100 - percentNum) / averageSpeed;
         }
 
         if (isWindows) process.stdout.write ('\0338');
         readline.clearLine (process.stdout, 0);
-        process.stdout.write (('    ' + working[icon] + '     ' + percent + cRet).yellow);
+        process.stdout.write (('    ' + working[icon] + '     ' + percent + ' - ' +
+            toReadableTime (etrMS) + ' ETA' + cRet).yellow);
+
+        // Save the new percent as the old percent
+        previousPercent = Math.round(100 * 1000 * (j / height + i / width / height)) / 1000;
     }
 }
 
@@ -308,7 +329,20 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
     if (isWindows) process.stdout.write ('\0338');
     readline.clearLine (process.stdout, 0);
 
-    var exeTimeInSeconds = (Date.now () - time0) / 1000,
+    // Concatenate the total time string for console.log
+    var timeString = toReadableTime (Date.now () - time0);
+
+    console.log (('    100.000% - ' + timeString).green);
+    console.log (('\nThe file' + (includeHTML? 's' : '') + ' "' +
+        pngFile + '"' + (includeHTML? ' and "' + htmlFile + '"' +
+            ' were' : ' was') + ' successfully saved in ' + __dirname).green);
+});
+
+// Used to convert milliseconds to a human-readable string
+function toReadableTime (ms) {
+    if (isNaN(ms)) return '';
+
+    var exeTimeInSeconds = ms / 1000,
         exeTimeInMinutes = exeTimeInSeconds / 60,
         exeTimeInHours   = exeTimeInMinutes / 60,
         exeTimeInDays    = exeTimeInHours / 24,
@@ -317,6 +351,9 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
         m = (exeTimeInMinutes % 60) >> 0,
         h = (exeTimeInHours % 24) >> 0,
         d = exeTimeInDays >> 0;
+
+    // Keep the string length consistent-ish
+    s += '0000';
 
     // Shorten any floating point error
     var fErr = s.match (/\.\d{4}/);
@@ -333,15 +370,9 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
             s = sInt + fErr[0].charAt (1) + fErr[0].charAt (2) + fErr[0].charAt (3);
     }
 
-    // Concatenate the total time string for console.log
-    var timeString = (d? d + 'd ' : '') + (h? h + 'h ' : '') + (m? m + 'm ' : '') + s + 's (' +
-        Math.round (1000 * exeTimeInSeconds) + 'ms)';
-
-    console.log (('    100.000% - ' + timeString).green);
-    console.log (('\nThe file' + (includeHTML? 's' : '') + ' "' +
-        pngFile + '"' + (includeHTML? ' and "' + htmlFile + '"' +
-            ' were' : ' was') + ' successfully saved in ' + __dirname).green);
-});
+    return (d? d + 'd ' : '') + (h? h + 'h ' : '') + (m? m + 'm ' : '') + s + 's (' +
+        Math.round (1000 * exeTimeInSeconds) + 'ms)'
+}
 
 // Used to map the ascii corresponding to a shade value range for the HTML file
 function asciiShadeAt (v) {
