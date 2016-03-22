@@ -133,7 +133,7 @@ if (isWindows) process.stdout.write ('\033[s');
 maxMagnitude *= maxMagnitude;
 
 // Used for animation purposes
-var working = ['⠋', '⠙', '⠚', '⠓'],
+var working = isWindows? ['0', 'O', 'o', '.', 'o', 'O'] : ['⠋', '⠙', '⠚', '⠓'],
     icon = 0,
     interval = 100, // milliseconds
     tIcon0 = Date.now ();
@@ -194,7 +194,7 @@ for (var j = 0; j < height; j++) {
             png.data[idx]     = includeR;  // red
             png.data[idx + 1] = includeG;  // green
             png.data[idx + 2] = includeB;  // blue
-            png.data[idx + 3] = includeA; // alpha
+            png.data[idx + 3] = includeA;  // alpha
         }
 
         else {
@@ -202,10 +202,10 @@ for (var j = 0; j < height; j++) {
 
             var rgbaColor = cg.rgbaAt (mu);
 
-            png.data[idx]     = rgbaColor[0]; // red
-            png.data[idx + 1] = rgbaColor[1]; // green
-            png.data[idx + 2] = rgbaColor[2]; // blue
-            png.data[idx + 3] = rgbaColor[3]; // alpha
+            png.data[idx]     = rgbaColor[0];  // red
+            png.data[idx + 1] = rgbaColor[1];  // green
+            png.data[idx + 2] = rgbaColor[2];  // blue
+            png.data[idx + 3] = rgbaColor[3];  // alpha
         }
 
         // Force update percentage if time to update loading icon
@@ -281,9 +281,14 @@ var finalAnimationInterval = setInterval(function () {
 }, interval);
 
 // Log that packing PNG data will begin
-if (isWindows) process.stdout.write ('\0338');
+var packingMessage = '    ⌛   Packing raw PNG data. Please wait!' + cRet;
+if (isWindows) {
+    packingMessage = '    *   Packing raw PNG data. Please wait!' + cRet;
+    process.stdout.write ('\0338');
+}
+
 readline.clearLine (process.stdout, 0);
-process.stdout.write (('    ⌛   Packing raw PNG data. Please wait!' + cRet).yellow);
+process.stdout.write (packingMessage.yellow);
 
 // Pipe the generated PNG information into the final output write stream
 png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
