@@ -158,7 +158,8 @@ for (var j = 0; j < height; j++) {
     // Used to store set information in lieu of image data
     var imageRow = '',
         py = j / height,
-        y0 = (1 - py) * ymin + (py) * ymax;
+        y0 = (1 - py) * ymin + (py) * ymax,
+        mu;
 
     for (var i = 0; i < width; i++) {
         var px = i / width,
@@ -182,7 +183,7 @@ for (var j = 0; j < height; j++) {
 
         // Calculate k smooth for smooth coloration of the mandelbrot image and plot the color
         var val = xi * xi + yi * yi;
-        var mu = k + 1 - Math.log (0.5 * Math.log (val)) / Math.log (2);
+        mu = k + 1 - Math.log (0.5 * Math.log (val)) / Math.log (2);
         mu /= iterations;
 
         // Append the new pixel to file
@@ -209,9 +210,10 @@ for (var j = 0; j < height; j++) {
 
         // Force update percentage if time to update loading icon
         if (Date.now () - tIcon0 >= interval) {
+            if (isNaN (mu)) mu = 1;
             var percent = Math.round(100 * 1000 * (py + px / height)) / 1000,
                 percentNum = percent,
-                speed = (percentNum - previousPercent) / interval;
+                speed = 32 * mu * (percentNum - previousPercent) / interval;
 
             percent += '';
             while (percent.length < 6) percent += '0';
@@ -227,7 +229,7 @@ for (var j = 0; j < height; j++) {
             if (isWindows) process.stdout.write ('\0338');
             readline.clearLine (process.stdout, 0);
             process.stdout.write (('    ' + working[icon] + '     ' + percent + ' - ' +
-                toReadableTime (etrMS) + ' ETA' + cRet).yellow);
+                toReadableTime (etrMS, true) + ' ETA' + cRet).yellow);
 
             // Save the new percent as the old percent
             previousPercent = Math.round(100 * 1000 * (py + px / height)) / 1000;
@@ -238,9 +240,10 @@ for (var j = 0; j < height; j++) {
 
     // Update the new percentage to the screen on every 3rd row to avoid unnecessary performance reduction
     if (!(j % 3)) {
+        if (isNaN (mu)) mu = 1;
         var percent = Math.round(100 * 1000 * (j / height + i / width / height)) / 1000,
             percentNum = percent,
-            speed = (percent - previousPercent) / interval;
+            speed = 32 * mu * (percentNum - previousPercent) / interval;
 
         percent += '';
         while (percent.length < 6) percent += '0';
@@ -258,7 +261,7 @@ for (var j = 0; j < height; j++) {
         if (isWindows) process.stdout.write ('\0338');
         readline.clearLine (process.stdout, 0);
         process.stdout.write (('    ' + working[icon] + '     ' + percent + ' - ' +
-            toReadableTime (etrMS) + ' ETA' + cRet).yellow);
+            toReadableTime (etrMS, true) + ' ETA' + cRet).yellow);
 
         // Save the new percent as the old percent
         previousPercent = Math.round(100 * 1000 * (j / height + i / width / height)) / 1000;
@@ -320,7 +323,8 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
     console.log (('' + err).red);
 
     if (includeHTML) 
-        console.log (('\nHowever, the HTML file "' + htmlFile + '" was successfully saved in ' + __dirname).yellow);
+        console.log (('\nHowever, the HTML file "' + htmlFile + '" was successfully saved in the current directory.').green);
+
 }).on ('finish', function () {
     // Stop the final animation from running
     clearInterval (finalAnimationInterval);
@@ -335,25 +339,25 @@ png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
     console.log (('    100.000% - ' + timeString).green);
     console.log (('\nThe file' + (includeHTML? 's' : '') + ' "' +
         pngFile + '"' + (includeHTML? ' and "' + htmlFile + '"' +
-            ' were' : ' was') + ' successfully saved in ' + __dirname).green);
+        ' were' : ' was') + ' successfully saved in the current directory').green);
 });
 
 // Used to convert milliseconds to a human-readable string
-function toReadableTime (ms) {
+function toReadableTime (ms, noShowDecimal) {
     if (isNaN(ms)) return '';
 
-    var exeTimeInSeconds = ms / 1000,
-        exeTimeInMinutes = exeTimeInSeconds / 60,
-        exeTimeInHours   = exeTimeInMinutes / 60,
-        exeTimeInDays    = exeTimeInHours / 24,
+    var exeSeconds = ms / 1000,
+        exeMinutes = exeSeconds / 60,
+        exeHours   = exeMinutes / 60,
+        exeDays    = exeHours / 24,
 
-        s = ('' + (Math.round (1000 * exeTimeInSeconds) / 1000) % 60),
-        m = (exeTimeInMinutes % 60) >> 0,
-        h = (exeTimeInHours % 24) >> 0,
-        d = exeTimeInDays >> 0;
+        s = (noShowDecimal? Math.round (exeSeconds) : Math.round (1000 * exeSeconds) / 1000) % 60,
+        m = (exeMinutes % 60) >> 0,
+        h = (exeHours % 24) >> 0,
+        d = exeDays >> 0;
 
     // Keep the string length consistent-ish
-    s += '0000';
+    s += noShowDecimal? '' : '0000';
 
     // Shorten any floating point error
     var fErr = s.match (/\.\d{4}/);
@@ -370,8 +374,8 @@ function toReadableTime (ms) {
             s = sInt + fErr[0].charAt (1) + fErr[0].charAt (2) + fErr[0].charAt (3);
     }
 
-    return (d? d + 'd ' : '') + (h? h + 'h ' : '') + (m? m + 'm ' : '') + s + 's (' +
-        Math.round (1000 * exeTimeInSeconds) + 'ms)'
+    return (d? d + 'd ' : '') + (h? h + 'h ' : '') + (m? m + 'm ' : '') + s + 's' +
+        (noShowDecimal? '' : ' (' + Math.round (1000 * exeSeconds) + 'ms)');
 }
 
 // Used to map the ascii corresponding to a shade value range for the HTML file
