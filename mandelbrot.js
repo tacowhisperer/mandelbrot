@@ -151,7 +151,7 @@ var previousPercent  = 0,
     previousSpeed    = 0,
     averageSpeed     = 0,
     etrMS            = 1e6,
-    SMOOTHING_FACTOR = 0.005;
+    SMOOTHING_FACTOR = 0.007;
 
 // Begin mandelbrot calculation loops
 for (var j = 0; j < height; j++) {
