@@ -210,10 +210,10 @@ for (var j = 0; j < height; j++) {
 
         // Force update percentage if time to update loading icon
         if (Date.now () - tIcon0 >= interval) {
-            if (isNaN (mu)) mu = 1;
+            if (isNaN (mu) || mu > 1) mu = 1;
             var percent = Math.round(100 * 1000 * (py + px / height)) / 1000,
                 percentNum = percent,
-                speed = 32 * mu * (percentNum - previousPercent) / interval;
+                speed = (1 - mu) * (percentNum - previousPercent) / interval;
 
             percent += '';
             while (percent.length < 6) percent += '0';
@@ -243,7 +243,7 @@ for (var j = 0; j < height; j++) {
         if (isNaN (mu)) mu = 1;
         var percent = Math.round(100 * 1000 * (j / height + i / width / height)) / 1000,
             percentNum = percent,
-            speed = 32 * mu * (percentNum - previousPercent) / interval;
+            speed = (1 - mu) * (percentNum - previousPercent) / interval;
 
         percent += '';
         while (percent.length < 6) percent += '0';
