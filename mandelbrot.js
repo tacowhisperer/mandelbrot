@@ -148,9 +148,10 @@ var cg = new ColorGradient (escapeGradient);
 
 // Used to calculate estimated time remaining
 var previousPercent  = 0, 
-    previousSpeed    = 0,
-    averageSpeed     = 0,
+    previousAccel    = 0,
+    averageAccel     = 0,
     etrMS            = 1e6,
+    tInterval        = 0,
     SMOOTHING_FACTOR = 0.007;
 
 // Begin mandelbrot calculation loops
@@ -209,11 +210,12 @@ for (var j = 0; j < height; j++) {
         }
 
         // Force update percentage if time to update loading icon
-        if (Date.now () - tIcon0 >= interval) {
-            if (isNaN (mu) || mu > 1) mu = 1;
+        tInterval = Date.now () - tIcon0;
+        if (tInterval >= interval) {
+            if (isNaN (mu) || mu >= 1) mu = 0.9999;
             var percent = Math.round(100 * 1000 * (py + px / height)) / 1000,
                 percentNum = percent,
-                speed = (1 - mu) * (percentNum - previousPercent) / interval;
+                accel = (1 - mu) * (percentNum - previousPercent) / interval;
 
             percent += '';
             while (percent.length < 6) percent += '0';
@@ -222,7 +224,8 @@ for (var j = 0; j < height; j++) {
             icon = (icon + 1) % working.length;
             tIcon0 = Date.now ();
 
-            averageSpeed = SMOOTHING_FACTOR * speed + (1 - SMOOTHING_FACTOR) * averageSpeed;
+            averageAccel = SMOOTHING_FACTOR * accel + (1 - SMOOTHING_FACTOR) * averageAccel;
+            var averageSpeed = averageAccel * tInterval * 0.25;
             etrMS = (100 - percentNum) / averageSpeed;
 
             // Refresh line rather than appending to it in the console
@@ -240,21 +243,23 @@ for (var j = 0; j < height; j++) {
 
     // Update the new percentage to the screen on every 3rd row to avoid unnecessary performance reduction
     if (!(j % 3)) {
-        if (isNaN (mu)) mu = 1;
+        if (isNaN (mu) || mu >= 1) mu = 0.9999;
         var percent = Math.round(100 * 1000 * (j / height + i / width / height)) / 1000,
             percentNum = percent,
-            speed = (1 - mu) * (percentNum - previousPercent) / interval;
+            accel = (1 - mu) * (percentNum - previousPercent) / interval;
 
         percent += '';
         while (percent.length < 6) percent += '0';
         percent += '%';
 
         // Update loading icon and etr if interval time has passed
-        if (Date.now () - tIcon0 >= interval) {
+        tInterval = Date.now () - tIcon0;
+        if (tInterval >= interval) {
             icon = (icon + 1) % working.length;
             tIcon0 = Date.now ();
 
-            averageSpeed = SMOOTHING_FACTOR * speed + (1 - SMOOTHING_FACTOR) * averageSpeed;
+            averageAccel = SMOOTHING_FACTOR * accel + (1 - SMOOTHING_FACTOR) * averageAccel;
+            var averageSpeed = averageAccel * tInterval * 0.25;
             etrMS = (100 - percentNum) / averageSpeed;
         }
 
