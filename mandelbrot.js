@@ -425,6 +425,95 @@ function asciiShadeAt (v) {
     else                 return '#';
 }
 
+// Calculates the line of best fit and refreshes its values to have a better secant to variable data
+function RegressionLine (refreshIterations) {
+    // Constants
+    var X = 0,
+        Y = 1;
+
+    // Monitoring variables
+    var rI  = refreshIterations,
+        r   = 0;                // number of times the value has been calculated
+
+    // Statistical variables
+    var vls = [[0, 0], [1, 0]],
+        X_BAR = 0,
+        Y_BAR = 0,
+        m = 0,
+        b = 0;
+
+
+    // Initializes the statistical variables with the values provided to the method
+    this.init = function (values) {
+        if (arguments[0] instanceof Array) vls = values;
+
+        var n = vls.length;
+
+        // Calculate the means
+        X_BAR = 0;
+        Y_BAR = 0;
+        for (var i = 0; i < n; i++) {
+            X_BAR += vls[i][X];
+            Y_BAR += vls[i][Y];
+        }
+
+        X_BAR /= n;
+        Y_BAR /= n;
+
+        // Calculate the regression slope
+        var rise = 0,
+            run = 0;
+        for (var i = 0; i < n; i++) {
+            rise += (vls[i][X] - X_BAR) * (vls[i][Y] - Y_BAR);
+            run += Math.pow (vls[i][X] - X_BAR, 2);
+        }
+
+        m = rise / run;
+        b = Y_BAR - m * X_BAR;
+
+        return this;
+    };
+
+    // Calculates the regression at time t, and adds a new value pair to the data set if provided
+    this.regressionAt = function (t, newPair) {
+        if (arguments.length == 2) {
+            vls.push (newPair);
+        }
+
+        // Update vls and statistical variables if it's time to refresh
+        if (!(r++ % rI)) {
+            // Splice to keep secant a tad more accurate... hopefully
+            // vls.splice (0, rI);
+            var n = vls.length;
+
+            // Re-calculate the means
+            X_BAR = 0;
+            Y_BAR = 0;
+            for (var i = 0; i < n; i++) {
+                X_BAR += vls[i][X];
+                Y_BAR += vls[i][Y];
+            }
+
+            X_BAR /= n;
+            Y_BAR /= n;
+
+            // Re-calculate the regression line
+            var rise = 0,
+                run = 0;
+            for (var i = 0; i < n; i++) {
+                rise += (vls[i][X] - X_BAR) * (vls[i][Y] - Y_BAR);
+                run += Math.pow (vls[i][X] - X_BAR, 2);
+            }
+
+            m = rise / run;
+            b = Y_BAR - m * X_BAR;
+        }
+
+
+        return m * v + b;
+    };
+}
+
 // Object used to calculate color gradient from a percent value v element of [0, 1]
 function ColorGradient (colorsArray) {
     // Index values
