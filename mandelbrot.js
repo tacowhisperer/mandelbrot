@@ -150,9 +150,10 @@ var cg = new ColorGradient (escapeGradient);
 var previousPercent  = 0, 
     previousAccel    = 0,
     averageAccel     = 0,
-    etrMS            = 1e6,
+    etrMS            = 0,
     tInterval        = 0,
-    SMOOTHING_FACTOR = 0.007;
+    maxETA           = 0,
+    SMOOTHING_FACTOR = 0.0055;
 
 // Begin mandelbrot calculation loops
 for (var j = 0; j < height; j++) {
@@ -225,8 +226,8 @@ for (var j = 0; j < height; j++) {
             tIcon0 = Date.now ();
 
             averageAccel = SMOOTHING_FACTOR * accel + (1 - SMOOTHING_FACTOR) * averageAccel;
-            var averageSpeed = averageAccel * tInterval * 0.25;
-            etrMS = (100 - percentNum) / averageSpeed;
+            etrMS = (100 - percentNum) / averageAccel;
+            if (etrMS > maxETA) maxETA = etrMS;
 
             // Refresh line rather than appending to it in the console
             if (isWindows) process.stdout.write ('\0338');
@@ -259,8 +260,8 @@ for (var j = 0; j < height; j++) {
             tIcon0 = Date.now ();
 
             averageAccel = SMOOTHING_FACTOR * accel + (1 - SMOOTHING_FACTOR) * averageAccel;
-            var averageSpeed = averageAccel * tInterval * 0.25;
-            etrMS = (100 - percentNum) / averageSpeed;
+            etrMS = (100 - percentNum) / averageAccel;
+            if (etrMS > maxETA) maxETA = etrMS;
         }
 
         if (isWindows) process.stdout.write ('\0338');
@@ -380,7 +381,7 @@ function toReadableTime (ms, noShowDecimal) {
     }
 
     return (d? d + 'd ' : '') + (h? h + 'h ' : '') + (m? m + 'm ' : '') + s + 's' +
-        (noShowDecimal? '' : ' (' + Math.round (1000 * exeSeconds) + 'ms)');
+        (noShowDecimal? '' : ' (' + Math.round (1000 * exeSeconds) + 'ms) (' + maxETA + ' max ETA ms)');
 }
 
 // Used to map the ascii corresponding to a shade value range for the HTML file
