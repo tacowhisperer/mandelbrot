@@ -24,6 +24,9 @@ var width = 1440,
 
     escapeGradient = [];
 
+// Used to debug the ETA countdown
+var debugETA = false;
+
 // Used to prevent excessively long terminal logs
 var cRet = '\r',
     isWindows = false;
@@ -70,9 +73,11 @@ for (var i = 2; i < process.argv.length; i++) {
         includeA = +('0x' + components[3]);
     }
 
-    else if (process.argv[i].match (/^--?escapeGradient:\[[0-9a-f]{8}(,[0-9a-f]{8})*\]$/i)) {
+    else if (process.argv[i].match (/^--?escapeGradient:\[[0-9a-f]{8}(,[0-9a-f]{8})*\]$/i))
         escapeGradient = process.argv[i].replace (/^--?escapeGradient:/i, '').match (/[0-9a-f]{8}/gi);
-    }
+
+    else if (process.argv[i].match (/^--?debugETA/i))
+        debugETA = true;
 
     else
         console.log ('Unknown argument: "'.yellow + process.argv[i].red + '"'.yellow);
@@ -380,8 +385,10 @@ function toReadableTime (ms, noShowDecimal) {
             s = sInt + fErr[0].charAt (1) + fErr[0].charAt (2) + fErr[0].charAt (3);
     }
 
+    var exeMS = Math.round (1000 * exeSeconds);
     return (d? d + 'd ' : '') + (h? h + 'h ' : '') + (m? m + 'm ' : '') + s + 's' +
-        (noShowDecimal? '' : ' (' + Math.round (1000 * exeSeconds) + 'ms) (' + maxETA + ' max ETA ms)');
+        (noShowDecimal? '' : ' (' + exeMS + 'ms)' +
+        (debugETA? '\n(' + maxETA + ' max ETA ms)' + '\n(' + (maxETA / exeMS) + ' max ETA / exe Time)': ''));
 }
 
 // Used to map the ascii corresponding to a shade value range for the HTML file
