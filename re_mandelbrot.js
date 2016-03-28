@@ -1,17 +1,17 @@
-// Load the required Node.js modules
+// Load the required Node.js modules (✓)
 var fs       = require ('fs'),
     readline = require ('readline'),
     PNG      = require ('pngjs').PNG,
     colors   = require ('colors');
 
-// Stores settings for the program
+// Stores settings for the program (✓)
 var SETTINGS_FILE = 'mandelbrot.settings';
 
-// Differentiate carriage return based on OS
+// Differentiate carriage return based on OS (✓)
 var cRet      = '\r',
     isWindows = false;
 
-// Windows is typically win32 or win64
+// Windows is typically win32 or win64 (✓)
 if (process.platform.match (/^win/i)) { 
     cRet      = '',
     isWindows = true;
@@ -22,12 +22,12 @@ if (process.platform.match (/^win/i)) {
 var interval = 100, // ms
     checkDA  = new DotAnimator (3, interval / 2);
 
-// Used to store input from stdin
+// Used to store input from stdin (✓)
 var answer = '',
     open = true,
     stdinCallback = function () {console.log ('No callback specified.'.red)};
 
-// Handles input coming from stdin. \n and \n equivalents are used as the cutoff
+// Handles input coming from stdin. \n and \n equivalents are used as the cutoff (✓ assuming that "data" fires each time on key press)
 process.stdin.on ('data', function (data) {
     // Assuming that 'data' fires on keypress, so hang tight for bugs
     var char = data.toString ('utf8');
@@ -46,21 +46,21 @@ process.stdin.on ('data', function (data) {
 
 
 
-// Check for settings stored in a previous session
+// Check for settings stored in a previous session (✓)
 checkForSettings ();
 
-// Called to re-check for settings
+// Called to re-check for settings (✓)
 function checkForSettings () {
     checkDA.log ('Checking for settings');
     fs.readFile (SETTINGS_FILE, readSettingsHandler);
 }
 
-// Handler for checking the stored settings, if any
+// Handler for checking the stored settings, if any (✓ with underlying assumptions)
 function readSettingsHandler (err, settings) {
     // Stop the animation of the little message that says "checking for settings..."
     checkDA.stop ();
 
-    // No previous settings were found
+    // No previous settings were found (✓ assuming that stdin "resume" and "pause" methods exist and behave as expected)
     if (err && err.code == 'ENOENT') {
         console.log ('No previous settings were found.'.yellow);
 
@@ -71,13 +71,13 @@ function readSettingsHandler (err, settings) {
         process.stdin.resume ();
     }
 
-    // A weird, unexpected error was encountered, so just end the program
+    // A weird, unexpected error was encountered, so just end the program (✓)
     else if (err) {
         console.log (('The error "' + err.code + '" was encountered').red);
         console.log (('' + err).red);
     }
 
-    // Manipulate the save settings buffer as specified and continue with mandelbrot calculations afterward
+    // Manipulate the save settings buffer as specified and continue with mandelbrot calculations afterward (✓ with underlying assumptions)
     else {
         // Pause stdin to avoid overwriting console logs
         process.stdin.pause ();
@@ -87,16 +87,19 @@ function readSettingsHandler (err, settings) {
 
         var validFile = true;
 
-        // The file cannot be less than 50 + SIGNATURE_LEN bytes unless do not use settings
-        if (settings.length == SIGNATURE_LEN + 1) 
+        // The file cannot be less than 50 + SIGNATURE_LEN bytes unless do not use settings (✓)
+        if (typeof settings[SIGNATURE_LEN + 1] != 'undefined') 
             useStoredSettings = settings[SIGNATURE_LEN] >> 7
+
+        else
+            useStoredSettings = false;
 
         if (useStoredSettings && settings.length < MIN_EXPECTED_DATA_BYTES)
             validFile = false; 
 
         // Check and read the file for everything if it's still considered valid
         if (validFile && useStoredSettings) {
-            // Check the save file SIGNATURE_LEN
+            // Check the save file SIGNATURE_LEN (✓)
             for (var i = 0; i < SIGNATURE_LEN; i++) {
                 if (settings[i] != SAVE_FILE_SIGNATURE[i]) {
                     validFile = false;
@@ -128,7 +131,7 @@ function readSettingsHandler (err, settings) {
                 BYTES LEFTOVER ARE THE FILE NAME
             */
 
-            // Read the stored data if it's still considered a valid file
+            // Read the stored data if it's still considered a valid file (✓ assuming all systems are little-endian)
             // STORAGE IS LITTLE-ENDIAN
             if (validFile && settings.length != SIGNATURE_LEN + 1) {
                 // Reload the boolean flags
@@ -209,23 +212,16 @@ function readSettingsHandler (err, settings) {
                 includeRGBA[3] = includeA = settings[SIGNATURE_LEN + 48];
 
                 // Reload escape gradient
-                // Check if there even is a file name to reload
+                // Check if there even is a file name to reload (✓ with assumption that escape gradient stores strings, not number values)
                 if (typeof settings[SIGNATURE_LEN + 51] != 'undefined') {
                     // Used to find the end of the escape gradient
                     var endOfEscapeGradient = 0;
 
                     // Push all values belonging to the escape gradient array
-                    escapeGradientBuffArr.push ('['.charCodeAt (0));
+                    escapeGradientBuffArr.reset ().push ('['.charCodeAt (0));
                     for (var i = SIGNATURE_LEN + 50, f = false; i < settings.length; i += 5) {
-                        // Signifies the end of the escape gradient array
-                        if (f && settings[i] == ']'.charCodeAt (0)) {
-                            escapeGradientBuffArr.push (']'.charCodeAt (0));
-                            endOfEscapeGradient = i;
-                            break;
-                        }
-
                         // signifies that another value is coming
-                        else if (f && settings[i] == ','.charCodeAt (0)) {
+                        if (f && settings[i] == ','.charCodeAt (0)) {
                             if (typeof settings[i + 4] != 'undefined') {
                                 escapeGradientBuffArr.push (settings[i + 1])
                                                      .push (settings[i + 2])
@@ -239,6 +235,13 @@ function readSettingsHandler (err, settings) {
                                 endOfEscapeGradient = i;
                                 break;
                             }
+                        }
+
+                        // Signifies the end of the escape gradient array
+                        else if (f && settings[i] == ']'.charCodeAt (0)) {
+                            escapeGradientBuffArr.push (']'.charCodeAt (0));
+                            endOfEscapeGradient = i;
+                            break;
                         }
 
                         // Haven't gone past the first round of RGBA
@@ -282,7 +285,7 @@ function readSettingsHandler (err, settings) {
                     fileName = fileName.length? fileName.replace (/\/|\?|<|>|\\|:|\*|\||"/g, '') : 'mandelbrot';
                 }
 
-                // There is no file name to reload
+                // There is no file name to reload (✓)
                 else {
                     escapeGradient = DEFAULT_ESCAPEGRADIENT.toString ('utf8')
                                                            .replace (/\[|\]/g, '')
@@ -323,9 +326,9 @@ function readSettingsHandler (err, settings) {
     }
 }
 
-// Answer the question of whether or not the user would like to save their settings
+// Answer the question of whether or not the user would like to save their settings (✓)
 function createNewSettings () {
-    // Clear the two previous logs
+    // Clear the two previous logs (✓)
     if (isWindows) process.stdout.write ('\0338');
     else process.stdout.write ('\r');
     readline.clearLine (process.stdout, 0);
@@ -333,11 +336,9 @@ function createNewSettings () {
     readline.clearLine (process.stdout, 0);
     if (isWindows) process.stdout.write ('\033[s');
 
-    // Create a new save file with default values because user wants to save settings
+    // Create a new save file with default values because user wants to save settings (✓)
     if (answer.match (/^y/i)) {
-        var saveBuffer = new BufferArray (),
-
-            widthView[0]  = DEFAULT_WIDTH,
+        var widthView[0]  = DEFAULT_WIDTH,
             heightView[0] = DEFAULT_HEIGHT,
             
             xminView[0]         = DEFAULT_XMIN,
@@ -346,7 +347,8 @@ function createNewSettings () {
             maxMagnitudeView[0] = DEFAULT_MAXMAGNITUDE,
             iterationsView[0]   = DEFAULT_ITERATIONS,
 
-            includeRGBA[0] = DEFAULT_INCLUDE_R,
+            // Values are numbers, not strings
+            includeRGBA[0] = DEFAULT_INCLUDE_R, 
             includeRGBA[1] = DEFAULT_INCLUDE_G,
             includeRGBA[2] = DEFAULT_INCLUDE_B,
             includeRGBA[3] = DEFAULT_INCLUDE_A;
@@ -365,6 +367,7 @@ function createNewSettings () {
         });
     }
 
+    // (✓)
     else if (answer.match (/^n/i)) {
         saveUserSettings (true, function () {
             console.log ('Reduced settings file successfully created'.green);
@@ -380,6 +383,7 @@ function createNewSettings () {
         });
     }
 
+    // (✓)
     else {
         console.log (('Your answer, "' + answer + + '", is not Y/N.').red);
         setTimeout (function () {
@@ -398,7 +402,7 @@ function updateSavedSettingsWithArgs () {
     // Arguments fed by the user start at index 2 in Node.js
     for (var i = 2; i < process.argv.length; i++) {
 
-        // Whether to save settings or not
+        // Whether to save settings or not (✓)
         if (process.argv[i].match (/^--?saveSettings:(y(e|es)?|no?|1|0|t(rue)?|f(alse)?)$/i)) {
             var ans = process.argv[i].replace (/^--?saveSettings:/i, '').toLowerCase ();
 
@@ -420,25 +424,25 @@ function updateSavedSettingsWithArgs () {
             }
         }
 
-        // Include the HTML file
+        // Include the HTML file (✓)
         else if (process.argv[i].match (/^--?HTML$/i)) {
             includeHTML = true;
             booleans = booleans | 0b01000000;
         }
 
-        // Do not include the HTML file
+        // Do not include the HTML file (✓)
         else if (process.argv[i].match (/^--?noHTML$/i)) {
             includeHTML = false;
             booleans = booleans & 0b10111111;
         }
 
-        // What the output file(s) name should be
+        // What the output file(s) name should be (✓)
         else if (process.argv[i].match (/^--?filename:/i)) {
             fileName = process.argv[i].replace (/\/|\?|<|>|\\|:|\*|\||"|^--?filename:/gi, '');
             fileNameBuffArr.reset ().mergeBuffer (new Buffer (fileName));
         }
 
-        // The dimensions of the image
+        // The dimensions of the image (✓)
         else if (process.argv[i].match (/^--?size:\d+\D\d+$/i)) {
             var dimensions = process.argv[i].match (/\d+/g);
             width = dimensions[0];
@@ -447,25 +451,25 @@ function updateSavedSettingsWithArgs () {
             heightView[0] = height;
         }
 
-        // The minimum x-value
+        // The minimum x-value (✓)
         else if (process.argv[i].match (/^--?xmin:\-?\d+\.?\d*$/i)) {
             xmin = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
             xminView[0] = xmin;
         }
 
-        // The maximum x-value
+        // The maximum x-value (✓)
         else if (process.argv[i].match (/^--?xmax:\-?\d+\.?\d*$/i)) {
             xmax = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
             xmaxView[0] = xmax;
         }
 
-        // The center y-value
+        // The center y-value (✓)
         else if (process.argv[i].match (/^--?ycenter:\-?\d+\.?\d*$/i)) {
             ycenter = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
             ycenterView[0] = ycenter;
         }
 
-        // The escape magnitude
+        // The escape magnitude (✓)
         else if (process.argv[i].match (/^--?maxMagnitude:\-?\d+\.?\d*$/i)) {
             maxMagnitude = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
             maxMagnitudeView[0] = maxMagnitude;
@@ -477,7 +481,7 @@ function updateSavedSettingsWithArgs () {
             iterationsView[0] = iterations;
         }
 
-        // The RGBA color of pixels that are included in the Mandelbrot Set
+        // The RGBA color of pixels that are included in the Mandelbrot Set (✓)
         else if (process.argv[i].match (/^--?includeRGBA:[0-9a-f]{8}$/i)) {
             var components = process.argv[i].replace (/^--?includeRGBA:/i, '').match (/[0-9a-f]{2}/gi);
             includeRGBA[0] = includeR = +('0x' + components[0]);
@@ -486,7 +490,7 @@ function updateSavedSettingsWithArgs () {
             includeRGBA[3] = includeA = +('0x' + components[3]);
         }
 
-        // The gradient array that defines the escape colors
+        // The gradient array that defines the escape colors (✓)
         else if (process.argv[i].match (/^--?escapeGradient:\[[0-9a-f]{8}(,[0-9a-f]{8})*\]$/i)) {
             escapeGradient = process.argv[i].replace (/^--?escapeGradient:/i, '').match (/[0-9a-f]{8}/gi);
             escapeGradientBuffArr.reset ().mergeBuffer (new Buffer ('[' + escapeGradient + ']'));
@@ -530,7 +534,7 @@ function updateSavedSettingsWithArgs () {
     }
 }
 
-// Saves the current variable values to the settings file
+// Saves the current variable values to the settings file (✓)
 function saveUserSettings (reduced, callback) {
     var saveBuffer = new BufferArray ();
     saveBuffer.mergeBuffer (SAVE_FILE_SIGNATURE).mergeBuffer (new Buffer ([booleans]));
@@ -543,7 +547,7 @@ function saveUserSettings (reduced, callback) {
                                                           .mergeBuffer (maxMagnitudeBuff)
                                                           .mergeBuffer (iterationsBuff)
                                                           .mergeBuffer (includeRGBA)
-                                                          .mergeBuffer (DEFAULT_ESCAPEGRADIENT)
+                                                          .mergeBuffer (new Buffer ('[' + escapeGradient + ']'))
                                                           .mergeBuffer (new Buffer ('mandelbrot'))
                                                           .buffer ();
     // Write the buffer to the file descriptor
