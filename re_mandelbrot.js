@@ -2,7 +2,11 @@
 var fs       = require ('fs'),
     readline = require ('readline'),
     PNG      = require ('pngjs').PNG,
-    colors   = require ('colors');
+    colors   = require ('colors'),
+    cp       = require ('child_process');
+
+// Holds the mandelbrot calculating child process
+var mandelbrotCalculatingChildProcess = null;
 
 // Stores settings for the program (✓)
 var SETTINGS_FILE = 'mandelbrot.settings';
@@ -19,8 +23,9 @@ if (process.platform.match (/^win/i)) {
 
 
 // Animate the initial check message
-var interval = 100, // ms
-    checkDA  = new DotAnimator (3, interval / 2);
+var ANIMATION_INT = 100, // ms
+    checkAnim =  ['Checking for settings', [['', '.', '..', '...'], 1, 0]],
+    checkLA = new ConsoleLineAnimation (checkAnim, ANIMATION_INT);
 
 // Used to store input from stdin (✓)
 var answer = '',
@@ -51,14 +56,14 @@ checkForSettings ();
 
 // Called to re-check for settings (✓)
 function checkForSettings () {
-    checkDA.log ('Checking for settings');
+    checkLA.log ();
     fs.readFile (SETTINGS_FILE, readSettingsHandler);
 }
 
 // Handler for checking the stored settings, if any (✓ with underlying assumptions)
 function readSettingsHandler (err, settings) {
     // Stop the animation of the little message that says "checking for settings..."
-    checkDA.stop ();
+    checkLA.stop ();
 
     // No previous settings were found (✓ assuming that stdin "resume" and "pause" methods exist and behave as expected)
     if (err && err.code == 'ENOENT') {
@@ -373,9 +378,9 @@ function createNewSettings () {
     }
 }
 
-// Update the current session with arguments provided, and save them if the user wants to
+// Update the current session with arguments provided, and save them if the user wants to (✓)
 function updateSavedSettingsWithArgs () {
-    // Arguments fed by the user start at index 2 in Node.js
+    // Arguments fed by the user start at index 2 in Node.js (✓)
     for (var i = 2; i < process.argv.length; i++) {
 
         // Whether to save settings or not (✓)
@@ -451,7 +456,7 @@ function updateSavedSettingsWithArgs () {
             maxMagnitudeView[0] = maxMagnitude;
         }
 
-        // The number of iterations per pixel
+        // The number of iterations per pixel (✓)
         else if (process.argv[i].match (/^--?iterations:\d+$/i)) {
             iterations = +process.argv[i].match (/\d+/)[0];
             iterationsView[0] = iterations;
@@ -472,19 +477,19 @@ function updateSavedSettingsWithArgs () {
             escapeGradientBuffArr.reset ().mergeBuffer (new Buffer ('[' + escapeGradient + ']'));
         }
 
-        // Show verbose ETA for debugging ETA purposes
+        // Show verbose ETA for debugging ETA purposes (✓)
         else if (process.argv[i].match (/^--?debugETA/i)) {
             debugETA = true;
             booleans = booleans | 0b00100000;
         }
 
-        // Hide verbose ETA for debugging ETA purposes
+        // Hide verbose ETA for debugging ETA purposes (✓)
         else if (process.argv[i].match (/^--?stopDebugETA/i)) {
             debugETA = false;
             booleans = booleans & 0b11011111;
         }
 
-        // An unknown argument was fed
+        // An unknown argument was fed (✓)
         else
             console.log ('Unknown argument: "'.yellow + process.argv[i].red + '"'.yellow);
     }
@@ -538,17 +543,85 @@ function saveUserSettings (reduced, callback) {
 }
 
 // The main attraction
-var calculatingMandyDA = new DotAnimator (3, interval / 2);
+var loadingIconArray = isWindows? ['0', 'O', 'o', '.', 'o', 'O'] : ['⠋', '⠙', '⠚', '⠓'];
+    mandyPercent = ['    ', loadingIconArray, '     '],
+    initMessageLen = mandyPercent.length,
+    calculatingMandyLA = new ConsoleLineAnimation (mandyPercent, ANIMATION_INT),
+
+    // Used to estimate the time remaining
+    SMOOTHING_FACTOR = 0.0055,
+    =
+    averageSpeed = 0;
+
+    // Add placeholders for the mandyPercent array
+    mandyPercent.push ('');
+    mandyPercent.push ('');
+
 function calculateMandelbrotSet () {
     // Clear the last log
     readline.clearLine (process.stdout, 0);
 
-    =
+    // Calculate additional variables needed for the mandelbrot image and the program
+    var time0 = Date.now ();
+
+    // Fixes reverse y-center value in the image
+    ycenter *= -1;
+
+    // Correct possible mixup by user
+    xmin = Math.min (xmin, xmax);
+    xmax = Math.max (xmin, xmax);
+
+    var xWidth = Math.abs (xmax - xmin),
+        yHalfHeight = xWidth * height / width / 2;
+
+    // Calculated from the image resolution to avoid skewing the final image
+    var ymin = ycenter - yHalfHeight,
+        ymax = ycenter + yHalfHeight;
+
+    var htmlFile = fileName + '.html',
+        pngFile = fileName + '.png';
+
+    // Log the variables used by the program to inform the user
+    console.log ('\nConstructing the mandelbrot image!\n'.green);
+    if (includeHTML) console.log ('    HTML file is included!'.cyan);
+
+    console.log (('    dimensions: ' + width + 'x' + height).magenta);
+    console.log (('    iterations: ' + iterations + ' per pixel\n').magenta);
+    console.log (('    escape mag: ' + maxMagnitude).magenta);
+    console.log (('          xmin: ' + xmin).magenta);
+    console.log (('          xmax: ' + xmax).magenta);
+    console.log (('          ymin: ' + ymin).magenta);
+    console.log (('          ymax: ' + ymax + '\n\n').magenta);
+
+
+    // Fork the process that will calculate
+    mandelbrotCalculatingChildProcess = cp.fork (__dirname + '/calculations.js');
+    mandelbrotCalculatingChildProcess.on ('message', function (outputs) {
+        var percent = outputs[0],
+            mu = outputs[1];
+
+        if (percent < 100) {
+            var percentNum = Math.round (1000 * percent) / 1000;
+
+            percent += '';
+            while (percent.length < 6) percent += '0';
+            percent += '%';
+
+            calculatingMandyLA.anim[initMessageLen] = percent;
+        }
+
+        else {
+            mandelbrotCalculatingChildProcess.kill ();
+            calculatingMandyLA.stop ();
+        }
+    });
+
+    calculatingMandyLA.log ();
 }
 
 
 
-// Used to convert milliseconds to a human-readable string
+// Used to convert milliseconds to a human-readable string (✓✓)
 function toReadableTime (ms, noShowDecimal) {
     if (isNaN(ms)) return '';
 
@@ -691,82 +764,77 @@ function BufferArray () {
     };
 }
 
-// Animates a trail of up to n dots each time the log or write method is called
-function DotAnimator (nDots, interval) {
-    var n = nDots + 1,
-        i = 0,
+// Generic console logging animator to let the user know that the program is still running (✓✓)
+function ConsoleLineAnimation (animationArray, coreMSInterval) {
+    var ms   = coreMSInterval,
 
-        SAVE_CURSOR_POSITION = '\033[s',
-        RESTORE_CURSOR_POSITION = '\0338',
+        // Windows ANSI stuff
+        SAVE_CURSOR_POSITION    = '\033[s',
+        RESTORE_CURSOR_POSITION ='\0338',
 
-        ms = interval,
-        jsInterval = false;
+        // My custom array format stuff
+        ANIMATION_ARRAY = 0,
+        ANIMATION_FREQ  = 1,
+        ANIMATION_INDEX = 2,
 
-    // Save the cursor postion if on Windows
-    if (isWindows) process.stdout.write (SAVE_CURSOR_POSITION);
+        t = -1,
+        jsInterval = false,
+        color = false,
+        context = this;
 
-    // Starts the logging loop
-    this.log = function (string, color) {
-        if (!jsInterval)
-            jsInterval = setInterval (logger, ms);
+    // Public access for ez manipulation
+    this.anim = animationArray;
 
+    this.log = function (logColor) {
+        if (logColor) color = logColor;
+        if (isWindows) process.stdout.write (SAVE_CURSOR_POSITION);
+
+        jsInterval = setInterval (update, ms);
         return this;
     };
 
-    // Stops the logging animation and clears the line
     this.stop = function () {
         if (jsInterval) {
-            if (isWindows) process.stdout.write (RESTORE_CURSOR_POSITION);
             readline.clearLine (process.stdout, 0);
+            if (isWindows) process.stdout.write (RESTORE_CURSOR_POSITION);
+            else process.stdout.write (cRet);
 
             clearInterval (jsInterval);
+            color = false;
             jsInterval = false;
         }
 
         return this;
     };
 
-    // Uses process.stdout.write to log text on the same line of the terminal
-    function logger (string, color) {
-        var dots = times (i++ % n, '.'),
-            hasNoColor = typeof color != 'string';
+    // Internal updating function
+    function update () {
+        // Advance to the next step
+        t++;
 
-        if (isWindows && hasNoColor) {
-            process.stdout.write (RESTORE_CURSOR_POSITION);
-            readline.clearLine (process.stdout, 0);
-            process.stdout.write (string + dots);
-        }
-
-        else if (isWindows) {
-            process.stdout.write (RESTORE_CURSOR_POSITION);
-            readline.clearLine (process.stdout, 0);
-            process.stdout.write ((string + dots)[color]);
-        }
-
-        else if (hasNoColor) {
-            readline.clearLine (process.stdout, 0);
-            process.stdout.write (string + dots);
-        }
-
-        else {
-            readline.clearLine (process.stdout, 0);
-            process.stdout.write ((string + dots)[color]);
-        }
-
-        return this;
-    };
-
-    // Multiplies the fed string n times
-    function times (n, string) {
+        // Holds the string that will be logged to the console
         var s = '';
-        for (var i = 0; i < n; i++)
-            s += string;
+        for (var i = 0; i < context.anim.length; i++) {
+            var e = context.anim[i],
+                a = e[ANIMATION_ARRAY],
+                f = e[ANIMATION_FREQ];
 
-        return s;
+            // Calculate the next value in the animation array to concatenate
+            if (e instanceof Array) 
+                s += a[(!t || !(t % f)? e[ANIMATION_INDEX]++ : e[ANIMATION_INDEX]) % a.length];
+
+            // Concatenate the simple string otherwise
+            else s += e;
+        }
+
+        // Clear the line, log the string, then reset the cursor for easy clearance
+        readline.clearLine (process.stdout, 0);
+        process.stdout.write (color? (s + cRet)[color] : s + cRet);
+        if (isWindows) process.stdout.write (RESTORE_CURSOR_POSITION);
     }
 }
 
-// Object used to calculate color gradient from a percent value v element of [0, 1]
+// Object used to calculate color gradient from a percent value v element of [0, 1] (✓✓)
 function ColorGradient (colorsArray) {
     // Index values
     var I = 0,
@@ -1008,15 +1076,6 @@ function ColorGradient (colorsArray) {
 }
 
 
-
-/*
-
-// Booleans used by the program
-var useSaveFile = true,
-    includeHTML = false,
-    debugETA = false;
-
-*/
 
 /* SAVE FILE FORMAT:
     BYTE  0       (1): [use save file, include HTML, debug ETA, 0, 0, 0, 0, 0]
