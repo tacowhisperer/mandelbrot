@@ -107,30 +107,6 @@ function readSettingsHandler (err, settings) {
                 }
             }
 
-            /* SAVE FILE FORMAT:
-                BYTE  0       (1): [use save file, include HTML, debug ETA, 0, 0, 0, 0, 0]
-                BYTES 1 - 4   (4): Uint32Array image width
-                BYTES 5 - 8   (4): Uint32Array image height
-                BYTES 9 - 16  (8): Float64Array x-min value
-                BYTES 17 - 24 (8): Float64Array x-max value
-                BYTES 25 - 32 (8): Float64Array y-center value
-                BYTES 33 - 40 (8): Float64Array max magnitude
-                BYTES 41 - 44 (4): Uint32Array  iterations per pixel
-                BYTES 45 - 48 (4): Include RGBA value
-                BYTE  49      (1): '[' (0x5b)
-                BYTE  50      (1): ']'
-
-                if BYTE 50 is not ']', BYTES 50 - 54 (4): First gradient RGBA value
-                    
-                    BYTE 55 (1): ',' (0x2c) OR BYTE 55 (1): ']' (0x5b)
-
-                    if BYTE 55 is ']', continue to the next information stored in file
-
-                    otherwise check for ',' + 4 bytes and then ']'. repeat if no ']'
-                    
-                BYTES LEFTOVER ARE THE FILE NAME
-            */
-
             // Read the stored data if it's still considered a valid file (✓ assuming all systems are little-endian)
             // STORAGE IS LITTLE-ENDIAN
             if (validFile && settings.length != SIGNATURE_LEN + 1) {
@@ -288,14 +264,8 @@ function readSettingsHandler (err, settings) {
                 // There is no file name to reload (✓)
                 else {
                     escapeGradient = DEFAULT_ESCAPEGRADIENT.toString ('utf8')
-                                                           .replace (/\[|\]/g, '')
+                                                           .replace (/^\[|\]$/g, '')
                                                            .match (/[0-9a-f]{8}/gi);
-
-                    // Convert each color string to color arrays for faster manipulation
-                    for (var i = 0; i < escapeGradient.length; i++) {
-                        escapeGradient[i] = escapeGradient[i].match (/[0-9a-f]{2}/gi)
-                                                             .map (function (s) {return +('0x' + s);});
-                    }
 
                     fileName = 'mandelbrot';
                 }
@@ -318,7 +288,9 @@ function readSettingsHandler (err, settings) {
             includeB = DEFAULT_INCLUDE_B,
             includeA = DEFAULT_INCLUDE_A,
 
-            escapeGradient = [];
+            escapeGradient = DEFAULT_ESCAPEGRADIENT.toString ('utf8')
+                                                   .replace (/^\[|\]$/g, '')
+                                                   .match (/[0-9a-f]{8}/gi);
         }
 
         // Begin calculating the mandelbrot set
@@ -351,7 +323,11 @@ function createNewSettings () {
             includeRGBA[0] = DEFAULT_INCLUDE_R, 
             includeRGBA[1] = DEFAULT_INCLUDE_G,
             includeRGBA[2] = DEFAULT_INCLUDE_B,
-            includeRGBA[3] = DEFAULT_INCLUDE_A;
+            includeRGBA[3] = DEFAULT_INCLUDE_A,
+
+            escapeGradient = DEFAULT_ESCAPEGRADIENT.toString ('utf8')
+                                                   .replace (/^\[|\]$/g, '')
+                                                   .match (/[0-9a-f]{8}/gi);
 
         saveUserSettings (false, function () {
             console.log ('Settings file successfully created'.green);
