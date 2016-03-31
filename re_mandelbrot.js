@@ -1,7 +1,6 @@
 // Load the required Node.js modules (✓)
 var fs       = require ('fs'),
     readline = require ('readline'),
-    PNG      = require ('pngjs').PNG,
     colors   = require ('colors'),
     cp       = require ('child_process');
 
@@ -44,6 +43,9 @@ process.stdin.on ('data', function (data) {
             stdinCallback ();
         }
 
+        else if (char.match (/\n/)) 
+            answer += char.match (/[^\n]+/) && char.match (/[^\n]+/)[0] || '';
+
         // Append the character otherwise
         else answer += char;
     }
@@ -72,7 +74,7 @@ function readSettingsHandler (err, settings) {
         // Open the floodgates to answer the question
         open = true;
         stdinCallback = createNewSettings;
-        process.stdout.write ('Would you like to save your settings? (Y/N then Enter): ');
+        process.stdout.write ('Would you like to save your settings? (Y/N then Enter twice): ');
         process.stdin.resume ();
     }
 
@@ -92,9 +94,9 @@ function readSettingsHandler (err, settings) {
 
         var validFile = true;
 
-        // The file cannot be less than 50 + SIGNATURE_LEN bytes unless do not use settings (✓)
-        if (typeof settings[SIGNATURE_LEN + 1] != 'undefined') 
-            useStoredSettings = settings[SIGNATURE_LEN] >> 7
+        // The file cannot be less than 50 + SIGNATURE_LEN bytes unless do not use settings
+        if (typeof settings[SIGNATURE_LEN] != 'undefined') 
+            useStoredSettings = settings[SIGNATURE_LEN] >> 7 & 0x1;
 
         else
             useStoredSettings = false;
@@ -117,9 +119,9 @@ function readSettingsHandler (err, settings) {
             if (validFile && settings.length != SIGNATURE_LEN + 1) {
                 // Reload the boolean flags
                 booleans = settings[SIGNATURE_LEN];
-                useStoredSettings = booleans >> 7;
-                includeHTML = booleans >> 6;
-                debugETA = booleans >> 5;
+                useStoredSettings = booleans >> 7 & 0x1;
+                includeHTML = booleans >> 6 & 0x1;
+                debugETA = booleans >> 5 & 0x1;
 
                 // Reload image width
                 widthBuff[0] = settings[SIGNATURE_LEN + 1];
@@ -303,7 +305,7 @@ function readSettingsHandler (err, settings) {
     }
 }
 
-// Answer the question of whether or not the user would like to save their settings (✓)
+// Answer the question of whether or not the user would like to save their settings
 function createNewSettings () {
     // Clear the two previous logs (✓)
     if (isWindows) process.stdout.write ('\0338');
@@ -315,24 +317,25 @@ function createNewSettings () {
 
     // Create a new save file with default values because user wants to save settings (✓)
     if (answer.match (/^y/i)) {
-        var widthView[0]  = DEFAULT_WIDTH,
-            heightView[0] = DEFAULT_HEIGHT,
-            
-            xminView[0]         = DEFAULT_XMIN,
-            xmaxView[0]         = DEFAULT_XMAX,
-            ycenterView[0]      = DEFAULT_YCENTER,
-            maxMagnitudeView[0] = DEFAULT_MAXMAGNITUDE,
-            iterationsView[0]   = DEFAULT_ITERATIONS,
+        booleans      = DEFAULT_BOOLEANS;
+        widthView[0]  = DEFAULT_WIDTH;
+        heightView[0] = DEFAULT_HEIGHT;
+        
+        xminView[0]         = DEFAULT_XMIN;
+        xmaxView[0]         = DEFAULT_XMAX;
+        ycenterView[0]      = DEFAULT_YCENTER;
+        maxMagnitudeView[0] = DEFAULT_MAXMAGNITUDE;
+        iterationsView[0]   = DEFAULT_ITERATIONS;
 
-            // Values are numbers, not strings
-            includeRGBA[0] = DEFAULT_INCLUDE_R, 
-            includeRGBA[1] = DEFAULT_INCLUDE_G,
-            includeRGBA[2] = DEFAULT_INCLUDE_B,
-            includeRGBA[3] = DEFAULT_INCLUDE_A,
+        // Values are numbers, not strings
+        includeRGBA[0] = DEFAULT_INCLUDE_R;
+        includeRGBA[1] = DEFAULT_INCLUDE_G;
+        includeRGBA[2] = DEFAULT_INCLUDE_B;
+        includeRGBA[3] = DEFAULT_INCLUDE_A;
 
-            escapeGradient = DEFAULT_ESCAPEGRADIENT.toString ('utf8')
-                                                   .replace (/^\[|\]$/g, '')
-                                                   .match (/[0-9a-f]{8}/gi);
+        escapeGradient = DEFAULT_ESCAPEGRADIENT.toString ('utf8')
+                                               .replace (/^\[|\]$/g, '')
+                                               .match (/[0-9a-f]{8}/gi);
 
         saveUserSettings (false, function () {
             console.log ('Settings file successfully created'.green);
@@ -395,12 +398,12 @@ function updateSavedSettingsWithArgs () {
                 case 't':
                 case 'true':
                     useStoredSettings = true;
-                    booleans = booleans | 0b10000000;
+                    booleans = booleans | 0x80;
                     break;
 
                 default:
                     useStoredSettings = false;
-                    booleans = booleans & 0b01111111;
+                    booleans = booleans & 0x7f;
                     break;
             }
         }
@@ -408,13 +411,13 @@ function updateSavedSettingsWithArgs () {
         // Include the HTML file (✓)
         else if (process.argv[i].match (/^--?HTML$/i)) {
             includeHTML = true;
-            booleans = booleans | 0b01000000;
+            booleans = booleans | 0x40;
         }
 
         // Do not include the HTML file (✓)
         else if (process.argv[i].match (/^--?noHTML$/i)) {
             includeHTML = false;
-            booleans = booleans & 0b10111111;
+            booleans = booleans & 0xbf;
         }
 
         // What the output file(s) name should be (✓)
@@ -480,13 +483,13 @@ function updateSavedSettingsWithArgs () {
         // Show verbose ETA for debugging ETA purposes (✓)
         else if (process.argv[i].match (/^--?debugETA/i)) {
             debugETA = true;
-            booleans = booleans | 0b00100000;
+            booleans = booleans | 0x20;
         }
 
         // Hide verbose ETA for debugging ETA purposes (✓)
         else if (process.argv[i].match (/^--?stopDebugETA/i)) {
             debugETA = false;
-            booleans = booleans & 0b11011111;
+            booleans = booleans & 0xdf;
         }
 
         // An unknown argument was fed (✓)
@@ -515,13 +518,16 @@ function updateSavedSettingsWithArgs () {
     }
 }
 
-// Saves the current variable values to the settings file (✓)
+// Saves the current variable values to the settings file
 function saveUserSettings (reduced, callback) {
     var saveBuffer = new BufferArray ();
-    saveBuffer.mergeBuffer (SAVE_FILE_SIGNATURE).mergeBuffer (new Buffer ([booleans]));
+    saveBuffer.mergeBuffer (SAVE_FILE_SIGNATURE).push (booleans);
 
-    var sBuff = reduced? saveBuffer.buffer () : saveBuffer.mergeBuffer (SAVE_FILE_SIGNATURE)
-                                                          .mergeBuffer (widthBuff)
+    console.log ('is a reduced save file: ' + reduced);
+    console.log ('escapeGradient:'.red);
+    console.log (escapeGradient);
+
+    var sBuff = reduced? saveBuffer.buffer () : saveBuffer.mergeBuffer (widthBuff)
                                                           .mergeBuffer (heightBuff)
                                                           .mergeBuffer (xminBuff)
                                                           .mergeBuffer (ycenterBuff)
@@ -531,6 +537,14 @@ function saveUserSettings (reduced, callback) {
                                                           .mergeBuffer (new Buffer ('[' + escapeGradient + ']'))
                                                           .mergeBuffer (new Buffer ('mandelbrot'))
                                                           .buffer ();
+    console.log ('expected save length: ' + (SAVE_FILE_SIGNATURE.length + 1 + widthBuff.length + heightBuff.length +
+        xminBuff.length + ycenterBuff.length + maxMagnitudeBuff.length + iterationsBuff.length + includeRGBA.length +
+        (new Buffer ('[' + escapeGradient + ']')).length + (new Buffer ('mandelbrot')).length));
+    console.log ('actual length: ' + sBuff.length);
+    console.log ('save buffer: '.red);
+    console.log (sBuff);
+    console.log ('');
+
     // Write the buffer to the file descriptor
     fs.writeFile (SETTINGS_FILE, sBuff, function (e) {
         if (e) {
@@ -543,18 +557,25 @@ function saveUserSettings (reduced, callback) {
 }
 
 // The main attraction
-var loadingIconArray = isWindows? ['0', 'O', 'o', '.', 'o', 'O'] : ['⠋', '⠙', '⠚', '⠓'];
+var I_FRQ = 1,
+    S_IDX = 0,
+    loadingIconArray = isWindows? [['0', 'O', 'o', '.', 'o', 'O'], I_FRQ, S_IDX] : [['⠋', '⠙', '⠚', '⠓'], I_FRQ, S_IDX];
     mandyPercent = ['    ', loadingIconArray, '     '],
     initMessageLen = mandyPercent.length,
     calculatingMandyLA = new ConsoleLineAnimation (mandyPercent, ANIMATION_INT),
 
     // Used to estimate the time remaining
-    SMOOTHING_FACTOR = 0.0055,
-    =
-    averageSpeed = 0;
+    SMOOTHING_FACTOR = 0.007,
+    previousPercent  = 0,
+    previousSpeed    = 0,
+    averageSpeed     = 0,
+    previousTime     = 0,
+    etaMS            = 0,
+    time0 = 0;
 
     // Add placeholders for the mandyPercent array
     mandyPercent.push ('');
+    mandyPercent.push (' - ');
     mandyPercent.push ('');
 
 function calculateMandelbrotSet () {
@@ -562,7 +583,7 @@ function calculateMandelbrotSet () {
     readline.clearLine (process.stdout, 0);
 
     // Calculate additional variables needed for the mandelbrot image and the program
-    var time0 = Date.now ();
+    time0 = Date.now ();
 
     // Fixes reverse y-center value in the image
     ycenter *= -1;
@@ -595,28 +616,65 @@ function calculateMandelbrotSet () {
 
 
     // Fork the process that will calculate
+    previousTime = Date.now ();
     mandelbrotCalculatingChildProcess = cp.fork (__dirname + '/calculations.js');
     mandelbrotCalculatingChildProcess.on ('message', function (outputs) {
         var percent = outputs[0],
             mu = outputs[1];
 
         if (percent < 100) {
-            var percentNum = Math.round (1000 * percent) / 1000;
+            var percentNum = Math.round (1000 * percent) / 1000,
+                speed = 60 * (percentNum - previousPercent) / (Date.now () - previousTime);
 
             percent += '';
+            if (!percent.match (/\./)) percent += '.';
             while (percent.length < 6) percent += '0';
             percent += '%';
 
+            // Calculate ETA using exponential decay algorithm
+            averageSpeed = SMOOTHING_FACTOR * speed + (1 - SMOOTHING_FACTOR) * averageSpeed;
+            etaMS = (100 - percentNum) / averageSpeed;
+
             calculatingMandyLA.anim[initMessageLen] = percent;
+            calculatingMandyLA.anim[initMessageLen + 2] = toReadableTime (etaMS, true) + ' ETA';
+
+            // Store the values for the next calculation
+            previousPercent = percentNum;
+            previousSpeed = speed;
         }
 
         else {
             mandelbrotCalculatingChildProcess.kill ();
             calculatingMandyLA.stop ();
+
+            // Log the final execution time and that progress is complete
+            console.log (('    100.000% - ' + toReadableTime (Date.now () - time0) + '\n').green);
+            console.log (('The file' + (includeHTML? 's' : '') + ' "' +
+                pngFile + '"' + (includeHTML? ' and "' + htmlFile + '"' +
+                ' were' : ' was') + ' successfully saved in the current directory').green);
         }
     });
 
-    calculatingMandyLA.log ();
+    mandelbrotCalculatingChildProcess.send ({
+        width: width,
+        height: height,
+        xmin: xmin,
+        xmax: xmax,
+        ymin: ymin,
+        ymax: ymax,
+        maxMagnitude: maxMagnitude,
+        iterations: iterations,
+        includeR: includeR,
+        includeG: includeG,
+        includeB: includeB,
+        includeA: includeA,
+        escapeGradient: escapeGradient,
+        includeHTML: includeHTML,
+        htmlFile: htmlFile,
+        pngFile: pngFile
+    });
+
+    calculatingMandyLA.log ('yellow');
 }
 
 
@@ -661,16 +719,16 @@ function toReadableTime (ms, noShowDecimal) {
 
 // Buffer for speed with appendability of Array
 function BufferArray () {
-    var buffer = new Buffer (64),
-        n = numBytes;
+    var n = 64,
+        buffer = new Buffer (n);
 
     // Represents the number of significant bytes in the internal buffer
     this.length = 0;
 
     // Resets the internal buffer and sets the length to 0
     this.reset = function () {
-        buffer = new Buffer (64);
         n = 64;
+        buffer = new Buffer (n);
         this.length = 0;
 
         return this;
@@ -717,7 +775,6 @@ function BufferArray () {
                 newInternalBuffer[i] = buffer[i];
 
             buffer = newInternalBuffer;
-            newInternalBuffer = null;
         }
 
         buffer[l] = byte;
@@ -727,28 +784,25 @@ function BufferArray () {
 
     // Merges the bytes of the new buffer with the internal buffer
     this.mergeBuffer = function (newBuffer) {
-        // Increment total length with incoming data
+        var oldLength = this.length;
         this.length += newBuffer.length;
-        var l = this.length - newBuffer.length;
 
-        // Increase internal buffer size if too small for new data
+        // Increase the buffer size if it is too small for the new data
         if (this.length > n) {
-
-            // Double the length to increase size logarithmically
-            while (this.length > n) n *= 2
+            // Double the internal size to decrease need to double logarithmically
+            while (this.length > n) n *= 2;
             var newInternalBuffer = new Buffer (n);
 
-            // Copy the old buffer into the new buffer, then trash the old buffer
-            for (var i = 0; i < l; i++)
+            // Copy the old buffer into the new buffer
+            for (var i = 0; i < oldLength; i++)
                 newInternalBuffer[i] = buffer[i];
 
             buffer = newInternalBuffer;
-            newInternalBuffer = null;
         }
 
-        // Copy the bytes from newBuffer to buffer
-        for (var i = l; i < this.length; i++)
-            buffer[i] = newBuffer[i];
+        // Copy the new buffer data to the internal buffer
+        for (var i = oldLength; i < this.length; i++)
+            buffer[i] = newBuffer[i - oldLength];
 
         return this;
     };
@@ -834,247 +888,6 @@ function ConsoleLineAnimation (animationArray, coreMSInterval) {
     }
 }
 
-// Object used to calculate color gradient from a percent value v element of [0, 1] (✓✓)
-function ColorGradient (colorsArray) {
-    // Index values
-    var I = 0,
-        RED = I++,
-        L_STAR = RED,
-
-        GREEN = I++,
-        A_STAR = GREEN,
-
-        BLUE = I++,
-        B_STAR = BLUE,
-
-        ALPHA = I++;
-
-    // Always have at least one color to avoid division by 0
-    if (!colorsArray.length)
-        colorsArray = ['000000ff', 'ffffffff'];
-
-    else if (colorsArray.length == 1)
-        colorsArray = ['000000ff', colorsArray[0]];
-
-    
-    // Convert each color string to color arrays for faster manipulation
-    for (var i = 0; i < colorsArray.length; i++)
-        colorsArray[i] = colorsArray[i].match (/[0-9a-f]{2}/gi).map (function (s) {return +('0x' + s);});
-
-    var n = colorsArray.length,
-        interval = 1 / n,
-        colors = colorsArray;
-
-
-    // Returns the color array found between a specific interval
-    this.rgbaAt = function (v, isASCII) {
-        if (isASCII) {
-            if      (v < 0.0333) 
-                return ' ';
-
-            else if (v < 0.0666) 
-                return '`';
-
-            else if (v < 0.1000) 
-                return '.';
-
-            else if (v < 0.1333) 
-                return '-';
-
-            else if (v < 0.1666) 
-                return "'";
-
-            else if (v < 0.2000) 
-                return '^';
-
-            else if (v < 0.2333) 
-                return '"';
-
-            else if (v < 0.2666) 
-                return ':';
-
-            else if (v < 0.3000) 
-                return '!';
-
-            else if (v < 0.3333) 
-                return '+';
-
-            else if (v < 0.3666) 
-                return '?';
-
-            else if (v < 0.4000) 
-                return '[';
-
-            else if (v < 0.4333) 
-                return '|';
-
-            else if (v < 0.4666) 
-                return 't';
-
-            else if (v < 0.5000) 
-                return 'j';
-
-            else if (v < 0.5333) 
-                return 'u';
-
-            else if (v < 0.5666) 
-                return 'x';
-
-            else if (v < 0.6000) 
-                return 'z';
-
-            else if (v < 0.6333) 
-                return 'U';
-
-            else if (v < 0.6666) 
-                return 'O';
-
-            else if (v < 0.7000) 
-                return 'Y';
-
-            else if (v < 0.7333) 
-                return 'Z';
-
-            else if (v < 0.7666) 
-                return 'X';
-
-            else if (v < 0.8000) 
-                return 'p';
-
-            else if (v < 0.8333) 
-                return 'b';
-
-            else if (v < 0.8666) 
-                return '%';
-
-            else if (v < 0.9000) 
-                return 'k';
-
-            else if (v < 0.9333) 
-                return '@';
-
-            else if (v < 0.9666) 
-                return 'M';
-
-            else 
-                return '#';
-        }
-
-        else {
-            for (var i = 1; i <= n; i++) {
-                if (i < n && v < i * interval) {
-                    // Calculate the interpolation through CIE-L*ab color space
-                    var a = (i - 1) / n,
-                        b = i / n,
-                        q = (v - a) / (b - a),
-                        p = 1 - q,
-                        rgba0 = colors[i - 1],
-                        rgba1 = colors[i],
-
-                        sL = x2L (r2X (rgba0)),
-                        eL = x2L (r2X (rgba1)),
-
-                        iL = p * sL[L_STAR] + q * eL[L_STAR],
-                        ia = p * sL[A_STAR] + q * eL[A_STAR],
-                        ib = p * sL[B_STAR] + q * eL[B_STAR],
-                        al = p * rgba0[ALPHA] + q * rgba1[ALPHA];
-
-                    return x2R (l2X ([iL, ia, ib, al]));
-                }
-
-                else if (i == n) {
-                    var a = (i - 1) / n,
-                        b = 1,
-                        q = (v - a) / (b - a),
-                        p = 1 - q,
-                        rgba0 = colors[i - 1],
-                        rgba1 = [includeR, includeG, includeB, includeA],
-
-                        sL = x2L (r2X (rgba0)),
-                        eL = x2L (r2X (rgba1)),
-
-                        iL = Math.round (p * sL[L_STAR] + q * eL[L_STAR]),
-                        ia = Math.round (p * sL[A_STAR] + q * eL[A_STAR]),
-                        ib = Math.round (p * sL[B_STAR] + q * eL[B_STAR]),
-                        al = Math.round (p * rgba0[ALPHA] + q * rgba1[ALPHA]);
-
-                    return x2R (l2X ([iL, ia, ib, al]));
-                }
-            }
-        }
-
-        throw 'The value "' + v + '" was rejected from all intervals from 0-' + interval + ' to ' + ((n - 1) / n) + '-1';
-    };
-
-    // Returns the array corresponding to the XYZ values of the input RGB array
-    function r2X (rgb) {
-        var R = rgb[0] / 255,
-            G = rgb[1] / 255,
-            B = rgb[2] / 255;
-
-        R = 100 * (R > 0.04045? Math.pow ((R + 0.055) / 1.055, 2.4) : R / 12.92);
-        G = 100 * (G > 0.04045? Math.pow ((G + 0.055) / 1.055, 2.4) : G / 12.92);
-        B = 100 * (B > 0.04045? Math.pow ((B + 0.055) / 1.055, 2.4) : B / 12.92);
-
-        var X = R * 0.4124 + G * 0.3576 + B * 0.1805,
-            Y = R * 0.2126 + G * 0.7152 + B * 0.0722,
-            Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
-
-        return [X, Y, Z, rgb[3]];
-    }
-
-    // Returns the array corresponding to the CIE-L*ab values of the input XYZ array
-    function x2L (xyz) {
-        var X = xyz[0] / 95.047,
-            Y = xyz[1] / 100,
-            Z = xyz[2] / 108.883,
-            T = 1 / 3,
-            K = 16 / 116;
-
-        X = X > 0.008856? Math.pow (X, T) : (7.787 * X) + K;
-        Y = Y > 0.008856? Math.pow (Y, T) : (7.787 * Y) + K;
-        Z = Z > 0.008856? Math.pow (Z, T) : (7.787 * Z) + K;
-
-        var L = (116 * Y) - 16,
-            a = 500 * (X - Y),
-            b = 200 * (Y - Z);
-
-        return [L, a, b, xyz[3]];
-    }
-
-    // Returns the array corresponding to the XYZ values of the input CIE-L*ab array
-    function l2X (Lab) {
-        var Y = (Lab[0] + 16) / 116,
-            X = Lab[1] / 500 + Y,
-            Z = Y - Lab[2] / 200,
-            K = 16 / 116;
-
-        X = 95.047 * ((X * X * X) > 0.008856? X * X * X : (X - K) / 7.787);
-        Y = 100 * ((Y * Y * Y) > 0.008856? Y * Y * Y : (Y - K) / 7.787);
-        Z = 108.883 * ((Z * Z * Z) > 0.008856? Z * Z * Z : (Z - K) / 7.787);
-
-        return [X, Y, Z, Lab[3]];
-    }
-
-    // Returns the array corresponding to the RGB values of the input XYZ array
-    function x2R (xyz) {
-        var X = xyz[0] / 100,
-            Y = xyz[1] / 100,
-            Z = xyz[2] / 100,
-            T = 1 / 2.4;
-
-        var R = X *  3.2406 + Y * -1.5372 + Z * -0.4986,
-            G = X * -0.9689 + Y *  1.8758 + Z *  0.0415,
-            B = X *  0.0557 + Y * -0.2040 + Z *  1.0570;
-
-        R = 255 * (R > 0.0031308? 1.055 * Math.pow (R, T) - 0.055 : 12.92 * R);
-        G = 255 * (G > 0.0031308? 1.055 * Math.pow (G, T) - 0.055 : 12.92 * G);
-        B = 255 * (B > 0.0031308? 1.055 * Math.pow (B, T) - 0.055 : 12.92 * B);
-
-        return [R, G, B, xyz[3]];
-    }
-}
-
 
 
 /* SAVE FILE FORMAT:
@@ -1105,7 +918,7 @@ function ColorGradient (colorsArray) {
 var _64_BITS = 8,
     _32_BITS = 4,
 
-    booleans = 0b10000000,
+    booleans = 0x80,
 
     widthBuff = new ArrayBuffer (_32_BITS),
     widthView = new Uint32Array (widthBuff),
@@ -1133,8 +946,18 @@ var _64_BITS = 8,
     escapeGradientBuffArr = new BufferArray (),
     fileNameBuffArr = new BufferArray ();
 
+// Add a length property to the array buffers
+widthBuff.length = _32_BITS;
+heightBuff.length = _32_BITS;
+xminBuff.length = _64_BITS;
+xmaxBuff.length = _64_BITS;
+ycenterBuff.length = _64_BITS;
+maxMagnitudeBuff.length = _64_BITS;
+iterationsBuff.length = _32_BITS;
+
 // Default values for a standard image
 var SAVE_FILE_SIGNATURE = new Buffer ([0x1, 0xe, 0xa, 0xf, 0xb, 0x1, 0xa, 0xd, 0xe]),
+    DEFAULT_BOOLEANS = 0x80 & 0xff;
     DEFAULT_WIDTH  = 1440,
     DEFAULT_HEIGHT = 1320,
 
