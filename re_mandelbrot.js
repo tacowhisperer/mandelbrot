@@ -23,8 +23,8 @@ if (process.platform.match (/^win/i)) {
 
 // Animate the initial check message
 var ANIMATION_INT = 100, // ms
-    checkAnim =  ['Checking for settings', [['', '.', '..', '...'], 1, 0]],
-    checkLA = new ConsoleLineAnimation (checkAnim, ANIMATION_INT);
+    checkAnim     =  ['Checking for settings', [['', '.', '..', '...'], 1, 0]],
+    checkLA       = new ConsoleLineAnimation (checkAnim, ANIMATION_INT);
 
 // Used to store input from stdin (✓)
 var answer = '',
@@ -202,9 +202,9 @@ function readSettingsHandler (err, settings) {
 
                     // Push all values belonging to the escape gradient array
                     escapeGradientBuffArr.reset ().push ('['.charCodeAt (0));
-                    for (var i = SIGNATURE_LEN + 50, f = false; i < settings.length; i += 5) {
+                    for (var i = SIGNATURE_LEN + 50, nf = false; i < settings.length; i += 5) {
                         // signifies that another value is coming
-                        if (f && settings[i] == ','.charCodeAt (0)) {
+                        if (nf && settings[i] == ','.charCodeAt (0)) {
                             if (typeof settings[i + 4] != 'undefined') {
                                 escapeGradientBuffArr.push (settings[i + 1])
                                                      .push (settings[i + 2])
@@ -221,14 +221,14 @@ function readSettingsHandler (err, settings) {
                         }
 
                         // Signifies the end of the escape gradient array
-                        else if (f && settings[i] == ']'.charCodeAt (0)) {
+                        else if (settings[i] == ']'.charCodeAt (0)) {
                             escapeGradientBuffArr.push (']'.charCodeAt (0));
                             endOfEscapeGradient = i;
                             break;
                         }
 
                         // Haven't gone past the first round of RGBA
-                        else if (!f) {
+                        else if (!nf) {
                             if (typeof settings[i + 3] != 'undefined') {
                                 escapeGradientBuffArr.push (settings[i])
                                                      .push (settings[i + 1])
@@ -243,7 +243,7 @@ function readSettingsHandler (err, settings) {
                                 break;
                             }
                             
-                            f = true;
+                            nf = true;
                         }
 
                         // The file was somehow truncated
@@ -260,6 +260,8 @@ function readSettingsHandler (err, settings) {
                                                           .toString ('utf8')
                                                           .match (/[0-9a-f]{8}/gi);
                     
+                    escapeGradient = escapeGradient? escapeGradient : [];
+
                     // Store any remaining bytes as the fileName
                     while (typeof settings[++endOfEscapeGradient] != 'undefined')
                         fileNameBuffArr.push (settings[endOfEscapeGradient]);
@@ -274,6 +276,7 @@ function readSettingsHandler (err, settings) {
                                                            .replace (/^\[|\]$/g, '')
                                                            .match (/[0-9a-f]{8}/gi);
 
+                    escapeGradient = escapeGradient? escapeGradient : [];
                     fileName = 'mandelbrot';
                 }
             }
@@ -298,6 +301,9 @@ function readSettingsHandler (err, settings) {
             escapeGradient = DEFAULT_ESCAPEGRADIENT.toString ('utf8')
                                                    .replace (/^\[|\]$/g, '')
                                                    .match (/[0-9a-f]{8}/gi);
+            
+            escapeGradient = escapeGradient? escapeGradient : [];
+            fileName = 'mandelbrot';
         }
 
         // Begin calculating the mandelbrot set
@@ -336,6 +342,8 @@ function createNewSettings () {
         escapeGradient = DEFAULT_ESCAPEGRADIENT.toString ('utf8')
                                                .replace (/^\[|\]$/g, '')
                                                .match (/[0-9a-f]{8}/gi);
+
+        escapeGradient = escapeGradient? escapeGradient : [];
 
         saveUserSettings (false, function () {
             console.log ('Settings file successfully created'.green);
@@ -477,6 +485,7 @@ function updateSavedSettingsWithArgs () {
         // The gradient array that defines the escape colors (✓)
         else if (process.argv[i].match (/^--?escapeGradient:\[[0-9a-f]{8}(,[0-9a-f]{8})*\]$/i)) {
             escapeGradient = process.argv[i].replace (/^--?escapeGradient:/i, '').match (/[0-9a-f]{8}/gi);
+            escapeGradient = escapeGradient? escapeGradient : [];
             escapeGradientBuffArr.reset ().mergeBuffer (new Buffer ('[' + escapeGradient + ']'));
         }
 
