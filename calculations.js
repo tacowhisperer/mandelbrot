@@ -1,10 +1,12 @@
 // Necessary modules to make the image
-var fs  = require ('fs'),
-    colors = require ('colors'),
-	PNG = require ('pngjs').PNG;
+const fs  = require ('fs'),
+      colors = require ('colors'),
+	  PNG = require ('pngjs').PNG;
 
-var RGBA_COLOR_TYPE = 6,
-    UPDATE_INTERVAL = 100;
+const RGBA_COLOR_TYPE = 6,
+      UPDATE_INTERVAL = 100,
+      GET_ASCII_RATHER_THAN_RGBA = true;
+
 
 // Mandelbrot values
 var width,
@@ -90,8 +92,7 @@ process.on ('message', function (environment) {
 
 // Does the mandelbrot calculations and saves the image
 var startTime = 0,
-    htmlFailed = false,
-    GET_ASCII_RATHER_THAN_RGBA = true;
+    htmlFailed = false;
 function generateMandelbrotImage () {
     // Save the starting time for updating the main program periodically
     startTime = Date.now ();
