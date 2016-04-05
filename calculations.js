@@ -3,6 +3,9 @@ var fs  = require ('fs'),
     colors = require ('colors'),
 	PNG = require ('pngjs').PNG;
 
+var RGBA_COLOR_TYPE = 6,
+    UPDATE_INTERVAL = 100;
+
 // Mandelbrot values
 var width,
 	height,
@@ -21,10 +24,14 @@ var width,
 
 	escapeGradient;
 
-// Program values
+// Program values and objects
 var includeHTML = false,
 	htmlFile,
-	pngFile;
+	pngFile,
+    options,
+    png,
+    cg;
+
 
 // Initialize the variables and start the calculations
 process.on ('message', function (environment) {
@@ -62,26 +69,116 @@ process.on ('message', function (environment) {
 
 	htmlFile = environment.htmlFile;
 	pngFile = environment.pngFile;
+    options = {
+        width: width,
+        height: height,
+        colorType: RGBA_COLOR_TYPE,
+        filterType: -1
+    };
+
+    png = new PNG (options);
+    cg = new ColorGradient (escapeGradient);
 
 	generateMandelbrotImage ();
 });
 
 // Does the mandelbrot calculations and saves the image
+var startTime = 0;
 function generateMandelbrotImage () {
-	// Temporarily simulate generation for debugging re_mandelbrot.js
-	var i = 0,
-		n = 10;
+    // Save the starting time for updating the main program periodically
+    startTime = Date.now ();
 
-	var int = setInterval (function () {
-		if ((i += 0.1 * Math.random ()) < n) {
-			process.send ([100 * i / n, 1]);
-		}
+    // Square the magnitude for faster escape check
+    maxMagnitude *= maxMagnitude;
 
-		else {
-            process.send ([100, 1]);
-            clearInterval (int);
+    // Generate the HTML file, if wanted
+    if (includeHTML) {
+        var css = [
+            'word-wrap: break-word;',
+            'white-space: pre;',
+            'display: block;',
+            'line-height: 0.8em;',
+            'letter-spacing: 1.9px'
+        ];
+
+        fs.writeFileSync(htmlFile, '<pre style="' + css.join (' ') + '">\n');
+    }
+
+    // Main maindelbrot loop
+	for (var j = 0; j < height; j++) {
+        var imageRow = '',
+            py = j / height,
+            y0 = (1 - py) * ymin + py * ymax,
+            mu;
+
+        for (var i = 0; i < width; i++) {
+            var px = i / width,
+                x0 = (1 - px) * xmin + px * xmax;
+
+            var xi = x0,
+                yi = y0,
+                k;
+
+            for (k = 0; k < iterations; k++) {
+                var x_i = xi,
+                    y_i = yi;
+
+                xi = x_i * x_i - y_i * y_i + x0;
+                yi = 2 * x_i * y_i + y0;
+
+                // Break if bigger than the maximum value allowed for magnitude
+                if ((xi * xi + yi * yi) > maxMagnitude) break;
+            }
+
+            // Calculate k smooth for smooth coloration of the mandelbrot image, then plot the color
+            var val = xi * xi + yi * yi;
+            mu = k + 1 - Math.log (0.5 * Math.log (val)) / Math.log (2);
+            mu /= iterations;
+
+            // Append the new pixel to the raw buffer
+            var idx = 4 * (width * j + i);
+            if (k == iterations) {
+                if (includeHTML) imageRow += '#';
+
+                png.data[idx]     = includeR;  // red
+                png.data[idx + 1] = includeG;  // green
+                png.data[idx + 2] = includeB;  // blue
+                png.data[idx + 3] = includeA;  // alpha
+            }
+
+            else {
+                if (includeHTML) imageRow += asciiShadeAt (mu);
+
+                var rgbaColor = cg.rgbaAt (mu);
+
+                png.data[idx]     = rgbaColor[0];  // red
+                png.data[idx + 1] = rgbaColor[1];  // green
+                png.data[idx + 2] = rgbaColor[2];  // blue
+                png.data[idx + 3] = rgbaColor[3];  // alpha
+            }
+
+            // Send update information to mandelbrot.js if time is good
+            if (Date.now () - startTime >= UPDATE_INTERVAL) {
+                process.send ([100 * (py + px / height), isNaN (mu) || mu > 1? 1 : mu == 0? 0.001 : mu]);
+                startTime = Date.now ();
+            }
         }
-	}, 33);
+
+        if (includeHTML) fs.appendFileSync (htmlFile, imageRow + '\n');
+    }
+
+    // Close the HTML tag of the ascii file if necessary
+    if (includeHTML) fs.appendFileSync (htmlFile, '</pre>');
+
+    // Tell the main process that packing will begin
+    process.send ([100, 'packing']);
+
+    // Pack and wrap it up
+    png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
+        process.send ([err, 'error']);
+    }).on ('finish', function () {
+        process.send ([100, 'finish']);
+    });
 }
 
 // Object used to calculate color gradient from a percent value v element of [0, 1] (✓✓)

@@ -356,7 +356,7 @@ function calculateMandelbrotSet () {
         var percent = outputs[0],
             mu = outputs[1];
 
-        if (percent < 100) {
+        if (typeof percent == 'number' && percent < 100) {
             var percentNum = Math.round (1000 * percent) / 1000,
                 speed = 60 * (percentNum - previousPercent) / (Date.now () - previousTime);
 
@@ -383,7 +383,13 @@ function calculateMandelbrotSet () {
             previousSpeed = speed;
         }
 
-        else {
+        else if (mu === 'packing') {
+            // Change the animation to the packing sequence
+            var dA = [['', '.', '..', '...'], 1, 0];
+            calculatingMandyLA.anim = ['    ', isWindows? '*' : '⌛', '   Packing raw PNG data. Please wait', dA];
+        }
+
+        else if (mu === 'finish') {
             mandelbrotCalculatingChildProcess.kill ();
             calculatingMandyLA.stop ();
 
@@ -394,6 +400,34 @@ function calculateMandelbrotSet () {
                 ' were' : ' was') + ' successfully saved in the current directory').green);
 
             process.exit (0);
+        }
+
+        else if (mu === 'error') {
+            mandelbrotCalculatingChildProcess.kill ();
+            calculatingMandyLA.stop ();
+
+            console.log (('    ' + (isWindows? 'x_x' : '✖_✖')).red);
+            console.log ('\nThere was an error writing the PNG file.'.red);
+            console.error (percent);
+
+            if (includeHTML) {
+                console.log (('\nHowever, the HTML file "' + htmlFile +
+                    '" was successfully saved in the current directory').green);
+            }
+
+            process.exit (1);
+        }
+
+        else {
+            mandelbrotCalculatingChildProcess.kill ();
+            calculatingMandyLA.stop ();
+            
+            console.log ('FATAL ERROR: CTHULHU ESCAPED FROM THE VORTEX OF THE UNDERWORLD'.red);
+            console.log ('    However, it graciously left tokens for your eye\'s pleasure:'.yellow);
+            console.log ('        percent: ' + percent);
+            console.log ('             mu: ' + mu);
+
+            process.exit (1);
         }
     });
 
