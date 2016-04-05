@@ -1,10 +1,10 @@
 # mandelbrot.js
 Generates a PNG of the good ol' Mandy with Node.js
 
-### Usage
+## Usage
 
 #### Default Settings
-For the default image with default settings, do `node mandelbrot.js`.
+For the default image with default settings, do not save preferences.
 
 #### Arguments
 **mandelbrot.js** can also take the following arguments. **NO ARGUMENTS CONTAIN SPACES.** Those spaces are just artifacts of bolding certain variables to emphasize that those bolded parts can be any value that fits. All arguments are case insensitive, and all arguments accept 1 or 2 hyphens in the front:
@@ -41,7 +41,7 @@ For the default image with default settings, do `node mandelbrot.js`.
 * `--escapeGradient:`**`[STUVWXYZ`**`(`**`,GHIJKLMN,...`**`)`**`]`**
   * Same color format as `includeRGBA`, but each color defined in the array is a stopping point for a certain escape speed. The more colors defined in this argument, the more rainbow-y the final image will appear. Note that the parenthesis are not actually included.
 
-### About and Licensing
-All code defined in this project is free to use as you see fit. All that I ask for is credit where credit is due, but it is not imperative as long as that code came from the `mandelbrot.js` file and also not the `ColorGradient` object.
+## About and Licensing
+All code defined in this project is free to use as you see fit. All that I ask for is credit where credit is due, but it is not imperative as long as that code does not come from the `ColorGradient` object (color space functions were borrowed from http://easyrgb.com).
 
 THIS IMPLEMENTATION IS AS-IS, AND COMES WITH NO WARRANTY OF ANY KIND. IT IS SIMPLY A PASSTIME THAT HAPPENS TO BE ALRIGHT AT GENERATING THE MANDELBROT SET IN PNG AND HTML FORMAT.
