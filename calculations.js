@@ -1,7 +1,7 @@
 // Necessary modules to make the image
 const fs  = require ('fs'),
       colors = require ('colors'),
-	  PNG = require ('pngjs').PNG;
+      PNG = require ('pngjs').PNG;
 
 const RGBA_COLOR_TYPE = 6,
       UPDATE_INTERVAL = 100,
@@ -10,26 +10,26 @@ const RGBA_COLOR_TYPE = 6,
 
 // Mandelbrot values
 var width,
-	height,
-	
-	xmin,
-	xmax,
-	ymin,
-	ymax,
-	maxMagnitude,
-	iterations,
+    height,
+    
+    xmin,
+    xmax,
+    ymin,
+    ymax,
+    maxMagnitude,
+    iterations,
 
-	includeR,
-	includeG,
-	includeB,
-	includeA,
+    includeR,
+    includeG,
+    includeB,
+    includeA,
 
-	escapeGradient;
+    escapeGradient;
 
 // Program values and objects
 var includeHTML = false,
-	htmlFile,
-	pngFile,
+    htmlFile,
+    pngFile,
     options,
     png,
     cg,
@@ -38,22 +38,22 @@ var includeHTML = false,
 
 // Initialize the variables and start the calculations
 process.on ('message', function (environment) {
-	width = environment.width;
-	height = environment.height;
+    width = environment.width;
+    height = environment.height;
 
-	xmin = environment.xmin;
-	xmax = environment.xmax;
-	ymin = environment.ymin;
-	ymax = environment.ymax;
-	maxMagnitude = environment.maxMagnitude;
-	iterations = environment.iterations;
+    xmin = environment.xmin;
+    xmax = environment.xmax;
+    ymin = environment.ymin;
+    ymax = environment.ymax;
+    maxMagnitude = environment.maxMagnitude;
+    iterations = environment.iterations;
 
-	includeR = environment.includeR;
-	includeG = environment.includeG;
-	includeB = environment.includeB;
-	includeA = environment.includeA;
+    includeR = environment.includeR;
+    includeG = environment.includeG;
+    includeB = environment.includeB;
+    includeA = environment.includeA;
 
-	escapeGradient = environment.escapeGradient;
+    escapeGradient = environment.escapeGradient;
     isWindows = environment.isWindows;
 
     console.log ('             width: '.cyan + width + 'px');
@@ -68,15 +68,15 @@ process.on ('message', function (environment) {
     console.log ('          includeG: '.cyan + includeG);
     console.log ('          includeB: '.cyan + includeB);
     console.log ('          includeA: '.cyan + includeA);
-	console.log ('    escapeGradient: '.cyan + '[' + escapeGradient + ']');
+    console.log ('    escapeGradient: '.cyan + '[' + escapeGradient + ']');
 
     // Save the new cursor location if on Windows to avoid clusterfuck of logging
     if (isWindows) process.stdout.write ('\n\n\033[s');
     else console.log ('\n');
     process.send ([100, 'startLog']);
 
-	htmlFile = environment.htmlFile;
-	pngFile = environment.pngFile;
+    htmlFile = environment.htmlFile;
+    pngFile = environment.pngFile;
     options = {
         width: width,
         height: height,
@@ -87,7 +87,7 @@ process.on ('message', function (environment) {
     png = new PNG (options);
     cg = new ColorGradient (escapeGradient);
 
-	generateMandelbrotImage ();
+    generateMandelbrotImage ();
 });
 
 // Does the mandelbrot calculations and saves the image
@@ -118,7 +118,7 @@ function generateMandelbrotImage () {
     }
 
     // Main maindelbrot loop
-	for (var j = 0; j < height; j++) {
+    for (var j = 0; j < height; j++) {
         var imageRow = '',
             py = j / height,
             y0 = (1 - py) * ymin + py * ymax,
