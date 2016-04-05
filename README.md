@@ -18,7 +18,7 @@ For the default image with default settings, do `node mandelbrot.js`.
   * Generate an HTML file with the Mandelbrot set encoded in text
 
 * `--noHTML`
-  * Stop generating an HTML file along with the PNG file
+  * Stop generating an HTML file alongside the PNG file
 
 * `--filename:`**`FILE_NAME`**
   * Make the output file name **`FILE_NAME`**.png and **`FILE_NAME`**.html if HTML is included
