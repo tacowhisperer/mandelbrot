@@ -30,7 +30,8 @@ var includeHTML = false,
 	pngFile,
     options,
     png,
-    cg;
+    cg,
+    isWindows;
 
 
 // Initialize the variables and start the calculations
@@ -51,6 +52,7 @@ process.on ('message', function (environment) {
 	includeA = environment.includeA;
 
 	escapeGradient = environment.escapeGradient;
+    isWindows = environment.isWindows;
 
     console.log ('             width: '.cyan + width + 'px');
     console.log ('            height: '.cyan + height + 'px');
@@ -65,7 +67,11 @@ process.on ('message', function (environment) {
     console.log ('          includeB: '.cyan + includeB);
     console.log ('          includeA: '.cyan + includeA);
 	console.log ('    escapeGradient: '.cyan + '[' + escapeGradient + ']');
-    console.log ('\n');
+
+    // Save the new cursor location if on Windows to avoid clusterfuck of logging
+    if (isWindows) process.stdout.write ('\n\n\033[s');
+    else console.log ('\n');
+    process.send ([100, 'startLog']);
 
 	htmlFile = environment.htmlFile;
 	pngFile = environment.pngFile;
@@ -83,7 +89,9 @@ process.on ('message', function (environment) {
 });
 
 // Does the mandelbrot calculations and saves the image
-var startTime = 0;
+var startTime = 0,
+    htmlFailed = false,
+    GET_ASCII_RATHER_THAN_RGBA = true;
 function generateMandelbrotImage () {
     // Save the starting time for updating the main program periodically
     startTime = Date.now ();
@@ -101,7 +109,11 @@ function generateMandelbrotImage () {
             'letter-spacing: 1.9px'
         ];
 
-        fs.writeFileSync(htmlFile, '<pre style="' + css.join (' ') + '">\n');
+        try {
+            fs.writeFileSync(htmlFile, '<pre style="' + css.join (' ') + '">\n');
+        } catch (e) {
+            htmlFailed = true;
+        }
     }
 
     // Main maindelbrot loop
@@ -147,7 +159,7 @@ function generateMandelbrotImage () {
             }
 
             else {
-                if (includeHTML) imageRow += asciiShadeAt (mu);
+                if (includeHTML) imageRow += cg.rgbaAt (mu, GET_ASCII_RATHER_THAN_RGBA);
 
                 var rgbaColor = cg.rgbaAt (mu);
 
@@ -159,16 +171,28 @@ function generateMandelbrotImage () {
 
             // Send update information to mandelbrot.js if time is good
             if (Date.now () - startTime >= UPDATE_INTERVAL) {
-                process.send ([100 * (py + px / height), isNaN (mu) || mu > 1? 1 : mu == 0? 0.001 : mu]);
+                process.send ([100 * (py + px / height), isNaN (mu) || mu > 1? 1 : mu]);
                 startTime = Date.now ();
             }
         }
 
-        if (includeHTML) fs.appendFileSync (htmlFile, imageRow + '\n');
+        if (includeHTML && !htmlFailed) {
+            try {
+                fs.appendFileSync (htmlFile, imageRow + '\n');
+            } catch (e) {
+                htmlFailed = true;
+            }
+        }
     }
 
     // Close the HTML tag of the ascii file if necessary
-    if (includeHTML) fs.appendFileSync (htmlFile, '</pre>');
+    if (includeHTML && !htmlFailed) {
+        try {
+            fs.appendFileSync (htmlFile, '</pre>');
+        } catch (e) {
+            htmlFailed = true;
+        }
+    }
 
     // Tell the main process that packing will begin
     process.send ([100, 'packing']);
@@ -177,7 +201,13 @@ function generateMandelbrotImage () {
     png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
         process.send ([err, 'error']);
     }).on ('finish', function () {
-        process.send ([100, 'finish']);
+        // Let the parent process know that the HTML file experienced some error when being created
+        if (includeHTML)
+            process.send ([100, 'finish:' + htmlFailed]);
+        
+        // Let the parent know that everything worked as expected
+        else
+            process.send ([100, 'finish']);
     });
 }
 
