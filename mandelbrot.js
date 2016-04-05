@@ -2,25 +2,25 @@
  *                                 PROGRAM MODULES, VARIABLES, AND INITIALIZATION OF ENVIRONMENT                                *
  ********************************************************************************************************************************/
 // Load the required Node.js modules
-var fs       = require ('fs'),
-    readline = require ('readline'),
-    colors   = require ('colors'),
-    cp       = require ('child_process'),
-    zlib     = require ('zlib');
+const fs       = require ('fs'),
+      readline = require ('readline'),
+      colors   = require ('colors'),
+      cp       = require ('child_process'),
+      zlib     = require ('zlib');
 
 // Holds the mandelbrot calculating child process
 var mandelbrotCalculatingChildProcess = null;
 
 // Name of the settings file
-var SETTINGS_FILE = 'mandelbrot.settings';
+const SETTINGS_FILE = 'mandelbrot.settings';
 
 // Differentiate carriage return based on OS
 var cRet = '\r',
     isWindows = false;
 
 // Windows ANSI stuff
-var SAVE_CURSOR_POSITION    = '\033[s',
-    RESTORE_CURSOR_POSITION = '\0338';
+const SAVE_CURSOR_POSITION    = '\033[s',
+      RESTORE_CURSOR_POSITION = '\0338';
 
 // Windows is typically win32 or win64
 if (process.platform.match (/^win/i)) {
@@ -29,14 +29,14 @@ if (process.platform.match (/^win/i)) {
 }
 
 // Animation constants
-var ANIMATION_MS = 100,
-    READ_MS = 1000;
+const ANIMATION_MS = 100,
+      READ_MS = 1000;
 
 /********************************************************************************************************************************
  *                                             MANDELBROT VALUES AND NAMING STRINGS                                             *
  ********************************************************************************************************************************/
 // Default values for a standard image
-var SAVE_FILE_SIGNATURE = new Buffer ([0x1, 0xe, 0xa, 0xf, 0xb, 0x1, 0xa, 0xd, 0xe]),
+const SAVE_FILE_SIGNATURE = new Buffer ([0x1, 0xe, 0xa, 0xf, 0xb, 0x1, 0xa, 0xd, 0xe]),
     
     DEFAULT_FILENAME = 'mandelbrot',
 
@@ -120,9 +120,12 @@ process.stdin.on ('data', function (data) {
     }
 });
 
+// Animation frequency and starting index for all console line animations found in this file
+const I_FRQ = 1,
+      S_IDX = 0;
 
 // Lets the user know that settings are being read from storage
-var checkAnim = ['Checking for settings', [['', '.', '..', '...'], 1, 0]],
+var checkAnim = ['Checking for settings', [['', '.', '..', '...'], I_FRQ, S_IDX]],
     checkLA   = new ConsoleLineAnimation (checkAnim, ANIMATION_MS);
 
 // Gets the ball rolling
@@ -241,8 +244,8 @@ function updateSavedSettingsWithArgs (settings) {
         // The dimensions of the image (✓)
         else if (process.argv[i].match (/^--?size:\d+\D\d+$/i)) {
             var dimensions = process.argv[i].match (/\d+/g);
-            settings.width = dimensions[0];
-            settings.height = dimensions[1];
+            settings.width = dimensions[0] > 0? +dimensions[0] : 1;
+            settings.height = dimensions[1] > 0? +dimensions[1] : 1;
         }
 
         // The minimum x-value (✓)
@@ -258,8 +261,8 @@ function updateSavedSettingsWithArgs (settings) {
             settings.ycenter = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
 
         // The escape magnitude (✓)
-        else if (process.argv[i].match (/^--?maxMagnitude:\-?\d+\.?\d*$/i))
-            settings.maxMagnitude = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+        else if (process.argv[i].match (/^--?maxMagnitude:\-?\d+(\.\d*)?$/i))
+            settings.maxMagnitude = +process.argv[i].match (/\-?\d+(\.\d*)?/)[0];
 
         // The number of iterations per pixel (✓)
         else if (process.argv[i].match (/^--?iterations:\d+$/i))
@@ -299,20 +302,19 @@ function updateSavedSettingsWithArgs (settings) {
 }
 
 // The main attraction
-var I_FRQ = 1,
-    S_IDX = 0,
-    loadingIconArray = isWindows? [['0', 'O', 'o', '.', 'o', 'O'], I_FRQ, S_IDX] : [['⠋', '⠙', '⠚', '⠓'], I_FRQ, S_IDX],
+var loadingIconArray = isWindows? [['0', 'O', 'o', '.', 'o', 'O'], I_FRQ, S_IDX] : [['⠋', '⠙', '⠚', '⠓'], I_FRQ, S_IDX],
     mandyPercent = ['    ', loadingIconArray, '     '],
     initMessageLen = mandyPercent.length,
-    calculatingMandyLA = new ConsoleLineAnimation (mandyPercent, ANIMATION_MS),
+    calculatingMandyLA = new ConsoleLineAnimation (mandyPercent, ANIMATION_MS);
 
-    // Used to estimate the time remaining
-    SMOOTHING_FACTOR = 0.007,
-    previousPercent  = 0,
-    previousSpeed    = 0,
-    averageSpeed     = 0,
-    previousTime     = 0,
-    etaMS            = 0,
+// Used to estimate the time remaining
+const SMOOTHING_FACTOR = 0.007;
+    
+var previousPercent = 0,
+    previousSpeed   = 0,
+    averageSpeed    = 0,
+    previousTime    = 0,
+    etaMS = 0,
     time0 = 0;
 
     // Add placeholders for the mandyPercent array
