@@ -385,9 +385,10 @@ function calculateMandelbrotSet () {
 
         else if (mu === 'packing') {
             // Change the animation to the packing sequence
-            var dA = [['', '.', '..', '...'], 1, 0];
+            var dA = [['', '.', '..', '...'], I_FRQ, S_IDX];
             calculatingMandyLA.anim = ['    ', isWindows? '*' : '⌛', '   Packing raw PNG data. Please wait', dA];
         }
+
 
         else if (mu === 'finish') {
             mandelbrotCalculatingChildProcess.kill ();
@@ -395,11 +396,29 @@ function calculateMandelbrotSet () {
 
             // Log the final execution time and that progress is complete
             console.log (('    100.000% - ' + toReadableTime (Date.now () - time0) + '\n').green);
-            console.log (('The file' + (includeHTML? 's' : '') + ' "' +
-                pngFile + '"' + (includeHTML? ' and "' + htmlFile + '"' +
-                ' were' : ' was') + ' successfully saved in the current directory').green);
+            console.log (('The file "' + pngFile + '" was successfully saved in the current directory').green);
 
             process.exit (0);
+        }
+
+        else if (mu === 'finish:true') {
+            mandelbrotCalculatingChildProcess.kill ();
+            calculatingMandyLA.stop ();
+
+            // Log the final execution time and that progress is complete, except the HTML file
+            console.log (('    100.000% - ' + toReadableTime (Date.now () - time0) + '\n').yellow);
+            console.log (('The file "' + pngFile + '" was successfully saved in the current directory, ' +
+                'but the file "' + htmlFile + '" experienced an error and had to be aborted.'));
+        }
+
+        else if (mu === 'finish:false') {
+            mandelbrotCalculatingChildProcess.kill ();
+            calculatingMandyLA.stop ();
+
+            // Log the final execution time and that progress is complete, including HTML file
+            console.log (('    100.000% - ' + toReadableTime (Date.now () - time0) + '\n').green);
+            console.log (('The files "' + pngFile + '" and "' + htmlFile + '" were successfully saved ' +
+                'in the current directory').green);
         }
 
         else if (mu === 'error') {
@@ -417,6 +436,9 @@ function calculateMandelbrotSet () {
 
             process.exit (1);
         }
+
+        else if (mu === 'startLog')
+            calculatingMandyLA.log ('yellow');
 
         else {
             mandelbrotCalculatingChildProcess.kill ();
@@ -436,9 +458,8 @@ function calculateMandelbrotSet () {
     transference['ymax'] = ymax;
     transference['htmlFile'] = htmlFile;
     transference['pngFile'] = pngFile;
+    transference['isWindows'] = isWindows;
     mandelbrotCalculatingChildProcess.send (transference);
-
-    calculatingMandyLA.log ('yellow');    
 }
 
 
