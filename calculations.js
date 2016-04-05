@@ -1,5 +1,6 @@
 // Necessary modules to make the image
 var fs  = require ('fs'),
+    colors = require ('colors'),
 	PNG = require ('pngjs').PNG;
 
 // Mandelbrot values
@@ -44,7 +45,20 @@ process.on ('message', function (environment) {
 
 	escapeGradient = environment.escapeGradient;
 
-	console.log ('child escapeG: ' + escapeGradient);
+    console.log ('             width: '.cyan + width + 'px');
+    console.log ('            height: '.cyan + height + 'px');
+    console.log ('              xmin: '.cyan + xmin);
+    console.log ('              xmax: '.cyan + xmax);
+    console.log ('              ymin: '.cyan + ymin);
+    console.log ('              ymax: '.cyan + ymax);
+    console.log ('      maxMagnitude: '.cyan + maxMagnitude);
+    console.log ('        iterations: '.cyan + iterations + ' per pixel');
+    console.log ('          includeR: '.cyan + includeR);
+    console.log ('          includeG: '.cyan + includeG);
+    console.log ('          includeB: '.cyan + includeB);
+    console.log ('          includeA: '.cyan + includeA);
+	console.log ('    escapeGradient: '.cyan + '[' + escapeGradient + ']');
+    console.log ('\n');
 
 	htmlFile = environment.htmlFile;
 	pngFile = environment.pngFile;
@@ -59,12 +73,15 @@ function generateMandelbrotImage () {
 		n = 10;
 
 	var int = setInterval (function () {
-		if ((i += 1) <= 10) {
+		if ((i += 0.1 * Math.random ()) < n) {
 			process.send ([100 * i / n, 1]);
 		}
 
-		else clearInterval (int);
-	}, 1000);
+		else {
+            process.send ([100, 1]);
+            clearInterval (int);
+        }
+	}, 33);
 }
 
 // Object used to calculate color gradient from a percent value v element of [0, 1] (✓✓)
