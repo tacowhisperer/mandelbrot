@@ -1,359 +1,414 @@
+/********************************************************************************************************************************
+ *                                 PROGRAM MODULES, VARIABLES, AND INITIALIZATION OF ENVIRONMENT                                *
+ ********************************************************************************************************************************/
+// Load the required Node.js modules
 var fs       = require ('fs'),
     readline = require ('readline'),
-    PNG      = require ('pngjs').PNG,
-    colors   = require ('colors');
+    colors   = require ('colors'),
+    cp       = require ('child_process'),
+    zlib     = require ('zlib');
 
-// Determine argument options for including the HTML file and the names for the
-// PNG and HTML files
-var includeHTML = false,
-    fileName = false;
+// Holds the mandelbrot calculating child process
+var mandelbrotCalculatingChildProcess = null;
 
-// Mandelbrot default values
-var width = 1440,
-    height = 1320,
-    xmin = -2,
-    xmax = 0.55,
-    ycenter = 0,
-    maxMagnitude = 2,
-    iterations = 150,
+// Name of the settings file
+var SETTINGS_FILE = 'mandelbrot.settings';
 
-    includeR = 0x0,
-    includeG = 0x0,
-    includeB = 0x0,
-    includeA = 0xff,
-
-    escapeGradient = [];
-
-// Used to debug the ETA countdown
-var debugETA = false;
-
-// Used to prevent excessively long terminal logs
+// Differentiate carriage return based on OS
 var cRet = '\r',
     isWindows = false;
+
+// Windows ANSI stuff
+var SAVE_CURSOR_POSITION    = '\033[s',
+    RESTORE_CURSOR_POSITION = '\0338';
+
+// Windows is typically win32 or win64
 if (process.platform.match (/^win/i)) {
     cRet = '';
     isWindows = true;
 }
 
+// Animation constants
+var ANIMATION_MS = 100,
+    READ_MS = 1000;
 
-// Process the arguments fed
-for (var i = 2; i < process.argv.length; i++) {
-    if (process.argv[i].match (/^--?html$/i))
-        includeHTML = true;
+/********************************************************************************************************************************
+ *                                             MANDELBROT VALUES AND NAMING STRINGS                                             *
+ ********************************************************************************************************************************/
+// Default values for a standard image
+var SAVE_FILE_SIGNATURE = new Buffer ([0x1, 0xe, 0xa, 0xf, 0xb, 0x1, 0xa, 0xd, 0xe]),
+    
+    DEFAULT_FILENAME = 'mandelbrot',
 
-    else if (process.argv[i].match (/^--?filename:/i))
-        fileName = process.argv[i].replace (/\/|\?|<|>|\\|:|\*|\||"|^--?filename:/gi, '');
+    DEFAULT_USE_SETTINGS = true,
+    DEFAULT_INCLUDE_HTML = false,
+    DEFAULT_DEBUG_ETA    = false,
 
-    else if (process.argv[i].match (/^--?size:\d+\D\d+$/i)) {
-        var dimensions = process.argv[i].match (/\d+/g);
-        width = dimensions[0];
-        height = dimensions[1];
+    DEFAULT_WIDTH  = 1440,
+    DEFAULT_HEIGHT = 1320,
+
+    DEFAULT_XMIN    = -2.0,
+    DEFAULT_XMAX    = 0.55,
+    DEFAULT_YCENTER = 0.0,
+
+    DEFAULT_MAXMAGNITUDE = 2.0,
+    DEFAULT_ITERATIONS   = 150,
+
+    DEFAULT_INCLUDE_R = 0x0,
+    DEFAULT_INCLUDE_G = 0x0,
+    DEFAULT_INCLUDE_B = 0x0,
+    DEFAULT_INCLUDE_A = 0xff,
+
+    DEFAULT_ESCAPEGRADIENT = [];
+
+// Variables that hold the values used by the mandelbrot calculations
+var width,
+    height,
+
+    xmin,
+    xmax,
+    ycenter,
+
+    maxMagnitude,
+    iterations,
+
+    includeR,
+    includeG,
+    includeB,
+    includeA,
+
+    escapeGradient;
+
+// Boolean flags for the program
+var useStoredSettings = true,
+    includeHTML = false,
+    debugETA = false,
+    fileName = false;
+
+// Main save file object
+var programSettings = new SaveFile (SETTINGS_FILE, SAVE_FILE_SIGNATURE);
+
+
+/********************************************************************************************************************************
+ *                                         MAIN PROGRAM FUNCTIONS AND HELPER FUNCTIONS                                          *
+ ********************************************************************************************************************************/
+// Used to store input from stdin
+var stdinAnswer = '',
+    open = false,
+    stdinCallback = function () {console.log ('No stdin callback specified'.red);};
+process.stdin.on ('data', function (data) {
+    var chars = data.toString ('utf8');
+
+    if (open) {
+        // Stop receiving text on return
+        if (chars == '\n' || chars == '\r' || chars == '\r\n') {
+            open = false;
+            process.stdin.pause ();
+            stdinCallback ();
+        }
+
+        else if (chars.match (/\n|\r/)) {
+            var carriageReturns = chars.match (/[^\n\r]+/);
+            stdinAnswer += carriageReturns? carriageReturns[0] : '';
+            open = false;
+            process.stdin.pause ();
+            stdinCallback ();
+        }
+
+        // Append all characters otherwise
+        else stdinAnswer += chars;
     }
+});
 
-    else if (process.argv[i].match (/^--?xmin:\-?\d+\.?\d*$/i))
-        xmin = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
 
-    else if (process.argv[i].match (/^--?xmax:\-?\d+\.?\d*$/i))
-        xmax = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+// Lets the user know that settings are being read from storage
+var checkAnim = ['Checking for settings', [['', '.', '..', '...'], 1, 0]],
+    checkLA   = new ConsoleLineAnimation (checkAnim, ANIMATION_MS);
 
-    else if (process.argv[i].match (/^--?ycenter:\-?\d+\.?\d*$/i))
-        ycenter = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+// Gets the ball rolling
+executeTheMainProgram ();
+function executeTheMainProgram () {
+    checkLA.log ('yellow');
+    programSettings.readVariables (updateSavedSettingsWithArgs, {
+        'ENOENT': function (weAlreadyKnowThis) {
+            checkLA.stop ();
+            if (!weAlreadyKnowThis) console.log ('No previous settings were found.'.yellow);
 
-    else if (process.argv[i].match (/^--?maxMagnitude:\-?\d+\.?\d*$/i))
-        maxMagnitude = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
-
-    else if (process.argv[i].match (/^--?iterations:\d+$/i))
-        iterations = +process.argv[i].match (/\d+/)[0];
-
-    else if (process.argv[i].match (/^--?includeRGBA:[0-9a-f]{8}$/i)) {
-        var components = process.argv[i].replace (/^--?includeRGBA:/i, '').match (/[0-9a-f]{2}/gi);
-        includeR = +('0x' + components[0]);
-        includeG = +('0x' + components[1]);
-        includeB = +('0x' + components[2]);
-        includeA = +('0x' + components[3]);
-    }
-
-    else if (process.argv[i].match (/^--?escapeGradient:\[[0-9a-f]{8}(,[0-9a-f]{8})*\]$/i))
-        escapeGradient = process.argv[i].replace (/^--?escapeGradient:/i, '').match (/[0-9a-f]{8}/gi);
-
-    else if (process.argv[i].match (/^--?debugETA/i))
-        debugETA = true;
-
-    else
-        console.log ('Unknown argument: "'.yellow + process.argv[i].red + '"'.yellow);
+            // Open stdin for user input to answer the question
+            open = true;
+            stdinCallback = createNewSettings;
+            process.stdout.write ('Would you like to save your settings? (y/n then Enter at least twice): ');
+            process.stdin.resume ();
+        }
+    });
 }
 
-// Hot fix for negative y-center movement
-ycenter *= -1;
+// Answer the question of whether or not the user would like to save their settings
+function createNewSettings () {
+    // Clear failed settings find and the the prompt log on the terminal
+    if (isWindows) process.stdout.write (RESTORE_CURSOR_POSITION);
+    else process.stdout.write (cRet);
+    readline.clearLine (process.stdout, 0);
+    readline.moveCursor (process.stdout, 0, -1);
+    readline.clearLine (process.stdout, 0);
+    if (isWindows) process.stdout.write (SAVE_CURSOR_POSITION);
 
-var htmlFile = fileName? fileName + '.html' : 'mandelbrot.html',
-    pngFile  = fileName? fileName + '.png' : 'mandelbrot.png';
+    if (stdinAnswer.match (/^y/i)) {
+        useStoredSettings = true;
+        programSettings.saveVariables (toSaveObject (), function () {
+            console.log ('Settings file was successfully created'.green);
 
-console.log ('\nConstructing the mandelbrot image!\n'.green);
+            setTimeout (function () {
+                // Clear the previous log before executing the main function again
+                if (isWindows) process.stdout.write (RESTORE_CURSOR_POSITION);
+                else process.stdout.write (cRet);
+                readline.clearLine (process.stdout, 0);
 
-var time0 = Date.now ();
-if (includeHTML) {
-    var css = [
-        'word-wrap: break-word;',
-        'white-space: pre;',
-        'display: block;',
-        'line-height: 0.8em;',
-        'letter-spacing: 1.9px'
-    ];
+                executeTheMainProgram ();
+            }, READ_MS);
+        });
+    }
 
-    fs.writeFileSync(htmlFile, '<pre style="' + css.join (' ') + '">\n');
+    else if (stdinAnswer.match (/^n/i)) {
+        useStoredSettings = false;
+        programSettings.saveVariables (toSaveObject (), function () {
+            console.log ('Setting to not save settings saved... lol'.green);
+
+            setTimeout (function () {
+                // Clear the previous log before executing the main function again
+                if (isWindows) process.stdout.write (RESTORE_CURSOR_POSITION);
+                else process.stdout.write (cRet);
+                readline.clearLine (process.stdout, 0);
+
+                executeTheMainProgram ();
+            }, READ_MS);
+        });
+    }
+
+    else {
+        console.log (('Your answer, "' + stdinAnswer + '", is not y/n.').red);
+        setTimeout (function () {
+            // Clear the previous log before prompting atain
+            if (isWindows) process.stdout.write (RESTORE_CURSOR_POSITION);
+            else process.stdout.write (cRet);
+            readline.clearLine (process.stdout, 0);
+
+            executionErrorCallback['ENOENT'] (true);
+        }, READ_MS);
+    }
 }
 
-if (includeHTML) console.log ('    HTML file is included.'.cyan);
-console.log (('    dimensions: ' + width + 'x' + height).magenta);
-console.log (('    iterations: ' + iterations + ' per pixel\n').magenta);
-console.log (('    escape mag: ' + maxMagnitude).magenta);
-console.log (('          xmin: ' + xmin).magenta);
-console.log (('          xmax: ' + xmax).magenta);
+// Update the current session with arguments provided, and save them
+function updateSavedSettingsWithArgs (settings) {
+    // Done checking for settings
+    checkLA.stop ();
 
-// Internal values calculated from manipulated values above
-var xWidth = Math.abs (xmin - xmax),
-    yHalfHeight = xWidth * height / width / 2;
+    // Arguments fed by the user start at index 2 in Node.js
+    for (var i = 2; i < process.argv.length; i++) {
 
-// ymin and ymax are calculated from the ycenter to avoid skewing the image for the arbitrary
-// width and height values
-var ymin = ycenter - yHalfHeight,
-    ymax = ycenter + yHalfHeight;
+        // Whether to save settings or not
+        if (process.argv[i].match (/^--?saveSettings:(y(e|es)?|no?|1|0|t(rue)?|f(alse)?)$/i)) {
+            var ans = process.argv[i].replace (/^--?saveSettings:/i, '').toLowerCase ();
 
-console.log (('          ymin: ' + ymin).magenta);
-console.log (('          ymax: ' + ymax + '\n\n').magenta);
+            switch (ans) {
+                case 'y':
+                case 'ye':
+                case 'yes':
+                case '1':
+                case 't':
+                case 'true':
+                    settings.useStoredSettings = true;
+                    break;
 
-// Save the cursor position if on Windows because Windows sucks
-if (isWindows) process.stdout.write ('\033[s');
-
-
-// Square the magnitude to avoid square rooting when checking the escape magnitude
-maxMagnitude *= maxMagnitude;
-
-// Used for animation purposes
-var working = isWindows? ['0', 'O', 'o', '.', 'o', 'O'] : ['⠋', '⠙', '⠚', '⠓'],
-    icon = 0,
-    interval = 100, // milliseconds
-    tIcon0 = Date.now ();
-
-// PNG container stream options
-var RGBA_COLOR_TYPE = 6;
-var options = {
-    width: width,
-    height: height,
-    colorType: RGBA_COLOR_TYPE,
-    filterType: -1
-};
-
-// Stores the PNG data
-var png = new PNG (options);
-
-// Calculates the color at a percentage given a color gradient array of strings
-var cg = new ColorGradient (escapeGradient);
-
-// Used to calculate estimated time remaining
-var previousPercent  = 0, 
-    previousAccel    = 0,
-    averageAccel     = 0,
-    etrMS            = 0,
-    tInterval        = 0,
-    maxETA           = 0,
-    SMOOTHING_FACTOR = 0.0055;
-
-// Begin mandelbrot calculation loops
-for (var j = 0; j < height; j++) {
-    // Used to store set information in lieu of image data
-    var imageRow = '',
-        py = j / height,
-        y0 = (1 - py) * ymin + (py) * ymax,
-        mu;
-
-    for (var i = 0; i < width; i++) {
-        var px = i / width,
-            x0 = (1 - px) * xmin + (px) * xmax;
-
-        // Calculates the next mandelbrot string value
-        var xi = x0, yi = y0, broke = false, k;
-        for (k = 0; k < iterations; k++) {
-            var x_i = xi,
-                y_i = yi;
-
-            xi = x_i * x_i - y_i * y_i + x0;
-            yi = 2 * x_i * y_i + y0;
-
-            // Break if bigger than the maximum value allowed value for magnitude
-            if ((xi * xi + yi * yi) > maxMagnitude) {
-                broke = true;
-                break;
+                default:
+                    settings.useStoredSettings = false;
+                    break;
             }
         }
 
-        // Calculate k smooth for smooth coloration of the mandelbrot image and plot the color
-        var val = xi * xi + yi * yi;
-        mu = k + 1 - Math.log (0.5 * Math.log (val)) / Math.log (2);
-        mu /= iterations;
+        // Include the HTML file (✓)
+        else if (process.argv[i].match (/^--?HTML$/i))
+            settings.includeHTML = true;
 
-        // Append the new pixel to file
-        var idx = 4 * (width * j + i);
-        if (k == iterations) {
-            if (includeHTML) imageRow += '#';
+        // Do not include the HTML file (✓)
+        else if (process.argv[i].match (/^--?noHTML$/i))
+            settings.includeHTML = false;
 
-            png.data[idx]     = includeR;  // red
-            png.data[idx + 1] = includeG;  // green
-            png.data[idx + 2] = includeB;  // blue
-            png.data[idx + 3] = includeA;  // alpha
+        // What the output file(s) name should be (✓)
+        else if (process.argv[i].match (/^--?filename:/i))
+            settings.fileName = process.argv[i].replace (/\/|\?|<|>|\\|:|\*|\||"|^--?filename:/gi, '');
+
+        // The dimensions of the image (✓)
+        else if (process.argv[i].match (/^--?size:\d+\D\d+$/i)) {
+            var dimensions = process.argv[i].match (/\d+/g);
+            settings.width = dimensions[0];
+            settings.height = dimensions[1];
+        }
+
+        // The minimum x-value (✓)
+        else if (process.argv[i].match (/^--?xmin:\-?\d+\.?\d*$/i))
+            settings.xmin = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+
+        // The maximum x-value (✓)
+        else if (process.argv[i].match (/^--?xmax:\-?\d+\.?\d*$/i))
+            settings.xmax = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+
+        // The center y-value (✓)
+        else if (process.argv[i].match (/^--?ycenter:\-?\d+\.?\d*$/i))
+            settings.ycenter = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+
+        // The escape magnitude (✓)
+        else if (process.argv[i].match (/^--?maxMagnitude:\-?\d+\.?\d*$/i))
+            settings.maxMagnitude = +process.argv[i].match (/\-?\d+\.?\d*/)[0];
+
+        // The number of iterations per pixel (✓)
+        else if (process.argv[i].match (/^--?iterations:\d+$/i))
+            settings.iterations = +process.argv[i].match (/\d+/)[0];
+
+        // The RGBA color of pixels that are included in the Mandelbrot Set (✓)
+        else if (process.argv[i].match (/^--?includeRGBA:[0-9a-f]{8}$/i)) {
+            var components = process.argv[i].replace (/^--?includeRGBA:/i, '').match (/[0-9a-f]{2}/gi);
+            settings.includeR = +('0x' + components[0]);
+            settings.includeG = +('0x' + components[1]);
+            settings.includeB = +('0x' + components[2]);
+            settings.includeA = +('0x' + components[3]);
+        }
+
+        // The gradient array that defines the escape colors (✓)
+        else if (process.argv[i].match (/^--?escapeGradient:\[[0-9a-f]{8}(,[0-9a-f]{8})*\]$/i)) {
+            settings.escapeGradient = process.argv[i].replace (/^--?escapeGradient:/i, '').match (/[0-9a-f]{8}/gi);
+            settings.escapeGradient = settings.escapeGradient? settings.escapeGradient : [];
+        }
+
+        // Show verbose ETA for debugging ETA purposes (✓)
+        else if (process.argv[i].match (/^--?debugETA/i))
+            settings.debugETA = true;
+
+        // Hide verbose ETA for debugging ETA purposes (✓)
+        else if (process.argv[i].match (/^--?stopDebugETA/i))
+            settings.debugETA = false;
+
+        // An unknown argument was fed (✓)
+        else
+            console.log ('Unknown argument: "'.red + process.argv[i].yellow + '"'.red);
+    }
+
+    // Set all necessary global variables for calculations and save all new settings generated to the file
+    setGlobalVariablesFromSettingsObject (settings);
+    programSettings.saveVariables (toSaveObject (), calculateMandelbrotSet)
+}
+
+// The main attraction
+var I_FRQ = 1,
+    S_IDX = 0,
+    loadingIconArray = isWindows? [['0', 'O', 'o', '.', 'o', 'O'], I_FRQ, S_IDX] : [['⠋', '⠙', '⠚', '⠓'], I_FRQ, S_IDX],
+    mandyPercent = ['    ', loadingIconArray, '     '],
+    initMessageLen = mandyPercent.length,
+    calculatingMandyLA = new ConsoleLineAnimation (mandyPercent, ANIMATION_MS),
+
+    // Used to estimate the time remaining
+    SMOOTHING_FACTOR = 0.007,
+    previousPercent  = 0,
+    previousSpeed    = 0,
+    averageSpeed     = 0,
+    previousTime     = 0,
+    etaMS            = 0,
+    time0 = 0;
+
+    // Add placeholders for the mandyPercent array
+    mandyPercent.push ('');
+    mandyPercent.push (' - ');
+    mandyPercent.push ('');
+function calculateMandelbrotSet () {
+    // Clear the last log
+    if (isWindows) process.stdout.write (RESTORE_CURSOR_POSITION);
+    else process.stdout.write (cRet);
+    readline.clearLine (process.stdout, 0);
+
+    // Save the starting time of the calculation
+    time0 = Date.now ();
+
+    // Fixes reverse y-center value in the image
+    ycenter *= -1;
+
+    // Correct possible mixup by the user
+    xmin = Math.min (xmin, xmax);
+    xmax = Math.max (xmin, xmax);
+
+    var xWidth = Math.abs (xmax - xmin),
+        yHalfHeight = xWidth * height / width / 2;
+
+    // Calculated from the image resolution to avoid skewing the final image
+    var ymin = ycenter - yHalfHeight,
+        ymax = ycenter + yHalfHeight;
+
+    var htmlFile = fileName + '.html',
+        pngFile = fileName + '.png';
+
+    // Log the variables used by the program to inform the user
+    console.log ('\nConstructing the mandelbrot image!\n'.green);
+    if (includeHTML) console.log ('    HTML file is included!'.cyan);
+
+    // Fork the process that will calculate
+    previousTime = Date.now ();
+    mandelbrotCalculatingChildProcess = cp.fork (__dirname + '/calculations.js');
+    mandelbrotCalculatingChildProcess.on ('message', function (outputs) {
+        var percent = outputs[0],
+            mu = outputs[1];
+
+        if (percent < 100) {
+            var percentNum = Math.round (1000 * percent) / 1000,
+                speed = 60 * (percentNum - previousPercent) / (Date.now () - previousTime);
+
+            percent += '';
+            if (!percent.match (/\./)) percent += '.';
+            while (percent.length < 6) percent += '0';
+
+            // Truncate the extra percentage values
+            var decimals = percent.match (/\.\d\d\d\d/);
+            if (decimals) 
+                percent = percent.replace (/\.\d+$/, decimals[0].substr (0, 4));
+
+            percent += '%';
+
+            // Calculate ETA using exponential decay algorithm
+            averageSpeed = SMOOTHING_FACTOR * speed + (1 - SMOOTHING_FACTOR) * averageSpeed;
+            etaMS = (100 - percentNum) / averageSpeed;
+
+            calculatingMandyLA.anim[initMessageLen] = percent;
+            calculatingMandyLA.anim[initMessageLen + 2] = toReadableTime (etaMS, true) + ' ETA';
+
+            // Store the values for the next calculation
+            previousPercent = percentNum;
+            previousSpeed = speed;
         }
 
         else {
-            if (includeHTML) imageRow += asciiShadeAt (mu);
+            mandelbrotCalculatingChildProcess.kill ();
+            calculatingMandyLA.stop ();
 
-            var rgbaColor = cg.rgbaAt (mu);
+            // Log the final execution time and that progress is complete
+            console.log (('    100.000% - ' + toReadableTime (Date.now () - time0) + '\n').green);
+            console.log (('The file' + (includeHTML? 's' : '') + ' "' +
+                pngFile + '"' + (includeHTML? ' and "' + htmlFile + '"' +
+                ' were' : ' was') + ' successfully saved in the current directory').green);
 
-            png.data[idx]     = rgbaColor[0];  // red
-            png.data[idx + 1] = rgbaColor[1];  // green
-            png.data[idx + 2] = rgbaColor[2];  // blue
-            png.data[idx + 3] = rgbaColor[3];  // alpha
+            process.exit (0);
         }
+    });
 
-        // Force update percentage if time to update loading icon
-        tInterval = Date.now () - tIcon0;
-        if (tInterval >= interval) {
-            if (isNaN (mu) || mu >= 1) mu = 0.9999;
-            var percent = Math.round(100 * 1000 * (py + px / height)) / 1000,
-                percentNum = percent,
-                accel = (1 - mu) * (percentNum - previousPercent) / interval;
+    var transference = toSaveObject ();
+    transference['ymin'] = ymin;
+    transference['ymax'] = ymax;
+    transference['htmlFile'] = htmlFile;
+    transference['pngFile'] = pngFile;
+    mandelbrotCalculatingChildProcess.send (transference);
 
-            percent += '';
-            while (percent.length < 6) percent += '0';
-            percent += '%';
-
-            icon = (icon + 1) % working.length;
-            tIcon0 = Date.now ();
-
-            averageAccel = SMOOTHING_FACTOR * accel + (1 - SMOOTHING_FACTOR) * averageAccel;
-            etrMS = (100 - percentNum) / averageAccel;
-            if (etrMS > maxETA) maxETA = etrMS;
-
-            // Refresh line rather than appending to it in the console
-            if (isWindows) process.stdout.write ('\0338');
-            readline.clearLine (process.stdout, 0);
-            process.stdout.write (('    ' + working[icon] + '     ' + percent + ' - ' +
-                toReadableTime (etrMS, true) + ' ETA' + cRet).yellow);
-
-            // Save the new percent as the old percent
-            previousPercent = Math.round(100 * 1000 * (py + px / height)) / 1000;
-        }
-    }
-
-    if (includeHTML) fs.appendFileSync (htmlFile, imageRow + '\n');
-
-    // Update the new percentage to the screen on every 3rd row to avoid unnecessary performance reduction
-    if (!(j % 3)) {
-        if (isNaN (mu) || mu >= 1) mu = 0.9999;
-        var percent = Math.round(100 * 1000 * (j / height + i / width / height)) / 1000,
-            percentNum = percent,
-            accel = (1 - mu) * (percentNum - previousPercent) / interval;
-
-        percent += '';
-        while (percent.length < 6) percent += '0';
-        percent += '%';
-
-        // Update loading icon and etr if interval time has passed
-        tInterval = Date.now () - tIcon0;
-        if (tInterval >= interval) {
-            icon = (icon + 1) % working.length;
-            tIcon0 = Date.now ();
-
-            averageAccel = SMOOTHING_FACTOR * accel + (1 - SMOOTHING_FACTOR) * averageAccel;
-            etrMS = (100 - percentNum) / averageAccel;
-            if (etrMS > maxETA) maxETA = etrMS;
-        }
-
-        if (isWindows) process.stdout.write ('\0338');
-        readline.clearLine (process.stdout, 0);
-        process.stdout.write (('    ' + working[icon] + '     ' + percent + ' - ' +
-            toReadableTime (etrMS, true) + ' ETA' + cRet).yellow);
-
-        // Save the new percent as the old percent
-        previousPercent = Math.round(100 * 1000 * (j / height + i / width / height)) / 1000;
-    }
+    calculatingMandyLA.log ('yellow');    
 }
 
-// Close the HTML tag of the ascii file if necessary
-if (includeHTML) fs.appendFileSync (htmlFile, '</pre>');
 
-
-// Ensure that the animation is still running to prevent panic
-var exeCount = 0,
-    dotCount = 0,
-    dots = '';
-
-var finalAnimationInterval = setInterval(function () {
-    if (!(exeCount++ % 4)) {
-        switch (dotCount++ % 4) {
-            case 0:
-                dots = '';
-                break;
-
-            case 1:
-                dots = '.';
-                break;
-
-            case 2:
-                dots = '..';
-                break;
-
-            case 3:
-                dots = '...';
-                break;
-        }
-    }
-
-    if (isWindows) process.stdout.write ('\0338');
-    readline.clearLine (process.stdout, 0);
-    process.stdout.write (('    ' + working[icon++ % working.length] + '     Flushing data to disk' + dots + cRet).yellow);
-
-}, interval);
-
-// Log that packing PNG data will begin
-var packingMessage = '    ⌛   Packing raw PNG data. Please wait!' + cRet;
-if (isWindows) {
-    packingMessage = '    *   Packing raw PNG data. Please wait!' + cRet;
-    process.stdout.write ('\0338');
-}
-
-readline.clearLine (process.stdout, 0);
-process.stdout.write (packingMessage.yellow);
-
-// Pipe the generated PNG information into the final output write stream
-png.pack ().pipe (fs.createWriteStream (pngFile)).on ('error', function (err) {
-    if (isWindows) process.stdout.write ('\0338');
-    readline.clearLine (process.stdout, 0);
-    console.log ('    ✖'.red);
-    console.log (('\nThere was an error writing the PNG file.').red);
-    console.log (('' + err).red);
-
-    if (includeHTML) 
-        console.log (('\nHowever, the HTML file "' + htmlFile + '" was successfully saved in the current directory.').green);
-
-}).on ('finish', function () {
-    // Stop the final animation from running
-    clearInterval (finalAnimationInterval);
-
-    // Clear the previously logged line to log the final percent and time of execution
-    if (isWindows) process.stdout.write ('\0338');
-    readline.clearLine (process.stdout, 0);
-
-    // Concatenate the total time string for console.log
-    var timeString = toReadableTime (Date.now () - time0);
-
-    console.log (('    100.000% - ' + timeString).green);
-    console.log (('\nThe file' + (includeHTML? 's' : '') + ' "' +
-        pngFile + '"' + (includeHTML? ' and "' + htmlFile + '"' +
-        ' were' : ' was') + ' successfully saved in the current directory').green);
-});
-
-// Used to convert milliseconds to a human-readable string
+// Used to convert milliseconds to a human-readable string (✓✓)
 function toReadableTime (ms, noShowDecimal) {
     if (isNaN(ms)) return '';
 
@@ -391,272 +446,225 @@ function toReadableTime (ms, noShowDecimal) {
         (debugETA? '\n(' + maxETA + ' max ETA ms)' + '\n(' + (maxETA / exeMS) + ' max ETA / exe Time)': ''));
 }
 
-// Used to map the ascii corresponding to a shade value range for the HTML file
-function asciiShadeAt (v) {
-    if      (v < 0.0333) return ' ';
-    else if (v < 0.0666) return '`';
-    else if (v < 0.1000) return '.';
-    else if (v < 0.1333) return '-';
-    else if (v < 0.1666) return "'";
-    else if (v < 0.2000) return '^';
-    else if (v < 0.2333) return '"';
-    else if (v < 0.2666) return ':';
-    else if (v < 0.3000) return '!';
-    else if (v < 0.3333) return '+';
-    else if (v < 0.3666) return '?';
-    else if (v < 0.4000) return '[';
-    else if (v < 0.4333) return '|';
-    else if (v < 0.4666) return 't';
-    else if (v < 0.5000) return 'j';
-    else if (v < 0.5333) return 'u';
-    else if (v < 0.5666) return 'x';
-    else if (v < 0.6000) return 'z';
-    else if (v < 0.6333) return 'U';
-    else if (v < 0.6666) return 'O';
-    else if (v < 0.7000) return 'Y';
-    else if (v < 0.7333) return 'Z';
-    else if (v < 0.7666) return 'X';
-    else if (v < 0.8000) return 'p';
-    else if (v < 0.8333) return 'b';
-    else if (v < 0.8666) return '%';
-    else if (v < 0.9000) return 'k';
-    else if (v < 0.9333) return '@';
-    else if (v < 0.9666) return 'M';
-    else                 return '#';
+// Generates an object from the variables that need to be stored to a file
+function toSaveObject () {
+    return {
+        fileName: fileName || DEFAULT_FILENAME,
+        useStoredSettings: useStoredSettings,
+        includeHTML: includeHTML,
+        debugETA: debugETA,
+        width: width || DEFAULT_WIDTH,
+        height: height || DEFAULT_HEIGHT,
+        xmin: xmin,
+        xmax: xmax,
+        ycenter: ycenter,
+        maxMagnitude: maxMagnitude,
+        iterations: iterations,
+        includeR: includeR,
+        includeG: includeG,
+        includeB: includeB,
+        includeA: includeA,
+        escapeGradient: escapeGradient || DEFAULT_ESCAPEGRADIENT
+    };
 }
 
-// Calculates the line of best fit and refreshes its values to have a better secant to variable data
-function RegressionLine (refreshIterations) {
-    // Constants
-    var X = 0,
-        Y = 1;
+// Loads the variables that need values for the program to work correctly
+function setGlobalVariablesFromSettingsObject (obj) {
+    // Default to default valuse if the value does not exist in the object for any reason
+    if (obj.useStoredSettings) {
+        fileName = obj.fileName || DEFAULT_FILENAME;
 
-    // Monitoring variables
-    var rI  = refreshIterations,
-        r   = 0;                // number of times the value has been calculated
+        useStoredSettings = obj.useStoredSettings || DEFAULT_USE_SETTINGS;
+        includeHTML = obj.includeHTML || DEFAULT_INCLUDE_HTML;
+        debugETA = obj.debugETA || DEFAULT_DEBUG_ETA;
 
-    // Statistical variables
-    var vls = [[0, 0], [1, 0]],
-        X_BAR = 0,
-        Y_BAR = 0,
-        m = 0,
-        b = 0;
+        width = obj.width || DEFAULT_WIDTH;
+        height = obj.height || DEFAULT_HEIGHT;
 
+        xmin = obj.xmin || DEFAULT_XMIN;
+        xmax = obj.xmax || DEFAULT_XMAX;
+        ycenter = obj.ycenter || DEFAULT_YCENTER;
 
-    // Initializes the statistical variables with the values provided to the method
-    this.init = function (values) {
-        if (arguments[0] instanceof Array) vls = values;
+        maxMagnitude = obj.maxMagnitude || DEFAULT_MAXMAGNITUDE;
+        iterations = obj.iterations || DEFAULT_ITERATIONS;
 
-        var n = vls.length;
+        includeR = obj.includeR || DEFAULT_INCLUDE_R;
+        includeG = obj.includeG || DEFAULT_INCLUDE_G;
+        includeB = obj.includeB || DEFAULT_INCLUDE_B;
+        includeA = obj.includeA || DEFAULT_INCLUDE_A;
 
-        // Calculate the means
-        X_BAR = 0;
-        Y_BAR = 0;
-        for (var i = 0; i < n; i++) {
-            X_BAR += vls[i][X];
-            Y_BAR += vls[i][Y];
-        }
+        escapeGradient = obj.escapeGradient || DEFAULT_ESCAPEGRADIENT;
+    }
 
-        X_BAR /= n;
-        Y_BAR /= n;
+    else {
+        fileName = DEFAULT_FILENAME;
 
-        // Calculate the regression slope
-        var rise = 0,
-            run = 0;
-        for (var i = 0; i < n; i++) {
-            rise += (vls[i][X] - X_BAR) * (vls[i][Y] - Y_BAR);
-            run += Math.pow (vls[i][X] - X_BAR, 2);
-        }
+        useStoredSettings = DEFAULT_USE_SETTINGS;
+        includeHTML = DEFAULT_INCLUDE_HTML;
+        debugETA = DEFAULT_DEBUG_ETA;
 
-        m = rise / run;
-        b = Y_BAR - m * X_BAR;
+        width = DEFAULT_WIDTH;
+        height = DEFAULT_HEIGHT;
+
+        xmin = DEFAULT_XMIN;
+        xmax = DEFAULT_XMAX;
+        ycenter = DEFAULT_YCENTER;
+
+        maxMagnitude = DEFAULT_MAXMAGNITUDE;
+        iterations = DEFAULT_ITERATIONS;
+
+        includeR = DEFAULT_INCLUDE_R;
+        includeG = DEFAULT_INCLUDE_G;
+        includeB = DEFAULT_INCLUDE_B;
+        includeA = DEFAULT_INCLUDE_A;
+
+        escapeGradient = DEFAULT_ESCAPEGRADIENT;
+    }
+}
+
+/********************************************************************************************************************************
+ *                                       JAVASCRIPT OBJECTS FOR SIMPLIFYING COMMON TASKS                                        *
+ ********************************************************************************************************************************/
+// Saves and reads settings to/from file as a JSON object
+function SaveFile (saveFileName, signatureBuffer) {
+    var sN = saveFileName,
+        sB = signatureBuffer;
+
+    // Stores the settings to file
+    this.saveVariables = function (json, callback, errCallbacks) {
+        // Create empty error callbacks if none provided
+        if (!errCallbacks) errCallbacks = {};
+
+        // Store the save file signature in the JSON object
+        json['SAVE_FILE_SIGNATURE'] = [];
+        for (var i = 0; i < sB.length; i++)
+            json['SAVE_FILE_SIGNATURE'].push (sB[i]);
+
+        // Compresses the JSON for reduced storage
+        zlib.deflate (JSON.stringify (json), function (err, compressedBuffer) {
+            // Writes the file to the disk, truncating if it already exists
+            fs.writeFile (sN, compressedBuffer, function (err) {
+                if (err && errCallbacks[err.code])
+                    errCallbacks[err.code] ();
+
+                else if (err) {
+                    console.log (('There was an unhandled error "' + err.code + '" writing the file "' + sN + '"').red);
+                    console.error (err);
+                }
+
+                else if (callback)
+                    callback ();
+
+                else
+                    console.log ('No callback specified'.red);
+            });    
+        });
+
+        
 
         return this;
     };
 
-    // Calculates the regression at time t, and adds a new value pair to the data set if provided
-    this.regressionAt = function (t, newPair) {
-        if (arguments.length == 2) {
-            vls.push (newPair);
-        }
+    // Reads the settings from file and returns an object of all stored properties
+    this.readVariables = function (callback, errCallbacks) {
+        // Create empty error callbacks if none provided
+        if (!errCallbacks) errCallbacks = {};
 
-        // Update vls and statistical variables if it's time to refresh
-        if (!(r++ % rI)) {
-            // Splice to keep secant a tad more accurate... hopefully
-            // vls.splice (0, rI);
-            var n = vls.length;
+        // Reads the file from the disk, unless some error is encountered
+        fs.readFile (sN, function (err, settingsZlib) {
+            if (err && errCallbacks[err.code])
+                errCallbacks[err.code] ();
 
-            // Re-calculate the means
-            X_BAR = 0;
-            Y_BAR = 0;
-            for (var i = 0; i < n; i++) {
-                X_BAR += vls[i][X];
-                Y_BAR += vls[i][Y];
+            else if (err) {
+                console.error (('There was an unhandled error "' + err.code + '" reading the file "' + sN + '"').red);
+                console.error (err);
             }
 
-            X_BAR /= n;
-            Y_BAR /= n;
+            else {
+                zlib.inflate (settingsZlib, function (e, settingsJSON) {
+                    var json = settingsJSON? settingsJSON.toString ('utf8') : 'null';
 
-            // Re-calculate the regression line
-            var rise = 0,
-                run = 0;
-            for (var i = 0; i < n; i++) {
-                rise += (vls[i][X] - X_BAR) * (vls[i][Y] - Y_BAR);
-                run += Math.pow (vls[i][X] - X_BAR, 2);
+                    if (e) console.error (e);
+
+                    else if (callback)
+                        callback (JSON.parse (json));
+
+                    else
+                        console.log ('No callback specified'.red);
+                });
             }
+        });
 
-            m = rise / run;
-            b = Y_BAR - m * X_BAR;
-        }
-
-
-        return m * v + b;
+        return this;
     };
 }
 
-// Object used to calculate color gradient from a percent value v element of [0, 1]
-function ColorGradient (colorsArray) {
-    // Index values
-    var I = 0,
-        RED = I++,
-        L_STAR = RED,
+// Generic console logging animator to let the user know that the program is still running (✓✓)
+function ConsoleLineAnimation (animationArray, coreMSInterval) {
+    var ms   = coreMSInterval,
 
-        GREEN = I++,
-        A_STAR = GREEN,
+        // Windows ANSI stuff
+        SAVE_CURSOR_POSITION    = '\033[s',
+        RESTORE_CURSOR_POSITION ='\0338',
 
-        BLUE = I++,
-        B_STAR = BLUE,
+        // My custom array format stuff
+        ANIMATION_ARRAY = 0,
+        ANIMATION_FREQ  = 1,
+        ANIMATION_INDEX = 2,
 
-        ALPHA = I++;
+        t = -1,
+        jsInterval = false,
+        color = false,
+        context = this;
 
-    // Always have at least one color to avoid division by 0
-    if (!colorsArray.length)
-        colorsArray = ['000000ff', 'ffffffff'];
+    // Public access for ez manipulation
+    this.anim = animationArray;
 
-    else if (colorsArray.length == 1)
-        colorsArray = ['000000ff', colorsArray[0]];
+    this.log = function (logColor) {
+        if (logColor) color = logColor;
+        if (isWindows) process.stdout.write (SAVE_CURSOR_POSITION);
 
-    
-    // Convert each color string to color arrays for faster manipulation
-    for (var i = 0; i < colorsArray.length; i++)
-        colorsArray[i] = colorsArray[i].match (/[0-9a-f]{2}/gi).map (function (s) {return +('0x' + s);});
-
-    var n = colorsArray.length,
-        interval = 1 / n,
-        colors = colorsArray;
-
-
-    // Returns the color array found between a specific interval
-    this.rgbaAt = function (v) {
-        for (var i = 1; i <= n; i++) {
-            if (i < n && v < i * interval) {
-                // Calculate the interpolation through CIE-L*ab color space
-                var a = (i - 1) / n,
-                    b = i / n,
-                    q = (v - a) / (b - a),
-                    p = 1 - q,
-                    rgba0 = colors[i - 1],
-                    rgba1 = colors[i],
-
-                    sL = x2L (r2X (rgba0)),
-                    eL = x2L (r2X (rgba1)),
-
-                    iL = p * sL[L_STAR] + q * eL[L_STAR],
-                    ia = p * sL[A_STAR] + q * eL[A_STAR],
-                    ib = p * sL[B_STAR] + q * eL[B_STAR],
-                    al = p * rgba0[ALPHA] + q * rgba1[ALPHA];
-
-                return x2R (l2X ([iL, ia, ib, al]));
-            }
-
-            else if (i == n) {
-                var a = (i - 1) / n,
-                    b = 1,
-                    q = (v - a) / (b - a),
-                    p = 1 - q,
-                    rgba0 = colors[i - 1],
-                    rgba1 = [includeR, includeG, includeB, includeA],
-
-                    sL = x2L (r2X (rgba0)),
-                    eL = x2L (r2X (rgba1)),
-
-                    iL = Math.round (p * sL[L_STAR] + q * eL[L_STAR]),
-                    ia = Math.round (p * sL[A_STAR] + q * eL[A_STAR]),
-                    ib = Math.round (p * sL[B_STAR] + q * eL[B_STAR]),
-                    al = Math.round (p * rgba0[ALPHA] + q * rgba1[ALPHA]);
-
-                return x2R (l2X ([iL, ia, ib, al]));
-            }
-        }
-
-        throw 'The value "' + v + '" was rejected from all intervals from 0-' + interval + ' to ' + ((n - 1) / n) + '-1';
+        jsInterval = setInterval (update, ms);
+        return this;
     };
 
-    // Returns the array corresponding to the XYZ values of the input RGB array
-    function r2X (rgb) {
-        var R = rgb[0] / 255,
-            G = rgb[1] / 255,
-            B = rgb[2] / 255;
+    this.stop = function () {
+        if (jsInterval) {
+            readline.clearLine (process.stdout, 0);
+            if (isWindows) process.stdout.write (RESTORE_CURSOR_POSITION);
+            else process.stdout.write (cRet);
 
-        R = 100 * (R > 0.04045? Math.pow ((R + 0.055) / 1.055, 2.4) : R / 12.92);
-        G = 100 * (G > 0.04045? Math.pow ((G + 0.055) / 1.055, 2.4) : G / 12.92);
-        B = 100 * (B > 0.04045? Math.pow ((B + 0.055) / 1.055, 2.4) : B / 12.92);
+            clearInterval (jsInterval);
+            color = false;
+            jsInterval = false;
+        }
 
-        var X = R * 0.4124 + G * 0.3576 + B * 0.1805,
-            Y = R * 0.2126 + G * 0.7152 + B * 0.0722,
-            Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
+        return this;
+    };
 
-        return [X, Y, Z, rgb[3]];
-    }
+    // Internal updating function
+    function update () {
+        // Advance to the next step
+        t++;
 
-    // Returns the array corresponding to the CIE-L*ab values of the input XYZ array
-    function x2L (xyz) {
-        var X = xyz[0] / 95.047,
-            Y = xyz[1] / 100,
-            Z = xyz[2] / 108.883,
-            T = 1 / 3,
-            K = 16 / 116;
+        // Holds the string that will be logged to the console
+        var s = '';
+        for (var i = 0; i < context.anim.length; i++) {
+            var e = context.anim[i],
+                a = e[ANIMATION_ARRAY],
+                f = e[ANIMATION_FREQ];
 
-        X = X > 0.008856? Math.pow (X, T) : (7.787 * X) + K;
-        Y = Y > 0.008856? Math.pow (Y, T) : (7.787 * Y) + K;
-        Z = Z > 0.008856? Math.pow (Z, T) : (7.787 * Z) + K;
+            // Calculate the next value in the animation array to concatenate
+            if (e instanceof Array) 
+                s += a[(!t || !(t % f)? e[ANIMATION_INDEX]++ : e[ANIMATION_INDEX]) % a.length];
 
-        var L = (116 * Y) - 16,
-            a = 500 * (X - Y),
-            b = 200 * (Y - Z);
+            // Concatenate the simple string otherwise
+            else s += e;
+        }
 
-        return [L, a, b, xyz[3]];
-    }
-
-    // Returns the array corresponding to the XYZ values of the input CIE-L*ab array
-    function l2X (Lab) {
-        var Y = (Lab[0] + 16) / 116,
-            X = Lab[1] / 500 + Y,
-            Z = Y - Lab[2] / 200,
-            K = 16 / 116;
-
-        X = 95.047 * ((X * X * X) > 0.008856? X * X * X : (X - K) / 7.787);
-        Y = 100 * ((Y * Y * Y) > 0.008856? Y * Y * Y : (Y - K) / 7.787);
-        Z = 108.883 * ((Z * Z * Z) > 0.008856? Z * Z * Z : (Z - K) / 7.787);
-
-        return [X, Y, Z, Lab[3]];
-    }
-
-    // Returns the array corresponding to the RGB values of the input XYZ array
-    function x2R (xyz) {
-        var X = xyz[0] / 100,
-            Y = xyz[1] / 100,
-            Z = xyz[2] / 100,
-            T = 1 / 2.4;
-
-        var R = X *  3.2406 + Y * -1.5372 + Z * -0.4986,
-            G = X * -0.9689 + Y *  1.8758 + Z *  0.0415,
-            B = X *  0.0557 + Y * -0.2040 + Z *  1.0570;
-
-        R = 255 * (R > 0.0031308? 1.055 * Math.pow (R, T) - 0.055 : 12.92 * R);
-        G = 255 * (G > 0.0031308? 1.055 * Math.pow (G, T) - 0.055 : 12.92 * G);
-        B = 255 * (B > 0.0031308? 1.055 * Math.pow (B, T) - 0.055 : 12.92 * B);
-
-        return [R, G, B, xyz[3]];
+        // Clear the line, log the string, then reset the cursor for easy clearance
+        readline.clearLine (process.stdout, 0);
+        process.stdout.write (color? (s + cRet)[color] : s + cRet);
+        if (isWindows) process.stdout.write (RESTORE_CURSOR_POSITION);
     }
 }
