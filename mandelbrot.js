@@ -308,13 +308,15 @@ var loadingIconArray = isWindows? [['0', 'O', 'o', '.', 'o', 'O'], I_FRQ, S_IDX]
     calculatingMandyLA = new ConsoleLineAnimation (mandyPercent, ANIMATION_MS);
 
 // Used to estimate the time remaining
-const SMOOTHING_FACTOR = 0.007;
+const SMOOTHING_FACTOR = 0.003;
     
 var previousPercent = 0,
     previousSpeed   = 0,
     averageSpeed    = 0,
     previousTime    = 0,
-    etaMS = 0,
+    etaMSHi = 0,
+    etaMS   = 0,
+    etaMSLo = Infinity,
     time0 = 0;
 
     // Add placeholders for the mandyPercent array
@@ -377,8 +379,13 @@ function calculateMandelbrotSet () {
             averageSpeed = SMOOTHING_FACTOR * speed + (1 - SMOOTHING_FACTOR) * averageSpeed;
             etaMS = (100 - percentNum) / averageSpeed;
 
+            // Use PERT ETA to lower extreme variation in time
+            if (etaMS > etaMSHi) etaMSHi = etaMS;
+            if (etaMS < etaMSLo) etaMSLo = etaMS;
+
+            var pertETA = (etaMSLo + 4 * etaMS + etaMSHi) / 6;
             calculatingMandyLA.anim[initMessageLen] = percent;
-            calculatingMandyLA.anim[initMessageLen + 2] = toReadableTime (etaMS, true) + ' ETA';
+            calculatingMandyLA.anim[initMessageLen + 2] = toReadableTime (pertETA, true) + ' ETA';
 
             // Store the values for the next calculation
             previousPercent = percentNum;
