@@ -215,17 +215,16 @@ function generateMandelbrotImage () {
 // Object used to calculate color gradient from a percent value v element of [0, 1] (✓✓)
 function ColorGradient (colorsArray) {
     // Index values
-    var I = 0,
-        RED = I++,
-        L_STAR = RED,
+    const RED = 0,
+          L_STAR = RED,
 
-        GREEN = I++,
-        A_STAR = GREEN,
+          GREEN = 1,
+          A_STAR = GREEN,
 
-        BLUE = I++,
-        B_STAR = BLUE,
+          BLUE = 2,
+          B_STAR = BLUE,
 
-        ALPHA = I++;
+          ALPHA = 3;
 
     // Always have at least one color to avoid division by 0
     if (!colorsArray.length)
@@ -339,42 +338,43 @@ function ColorGradient (colorsArray) {
         }
 
         else {
+            var a, b, q, p, rgba0, rgba1, sL, eL, iL, ia, ib, al;
             for (var i = 1; i <= n; i++) {
                 if (i < n && v < i * interval) {
                     // Calculate the interpolation through CIE-L*ab color space
-                    var a = (i - 1) / n,
-                        b = i / n,
-                        q = (v - a) / (b - a),
-                        p = 1 - q,
-                        rgba0 = colors[i - 1],
-                        rgba1 = colors[i],
+                    a = (i - 1) / n;
+                    b = i / n;
+                    q = (v - a) / (b - a);
+                    p = 1 - q;
+                    rgba0 = colors[i - 1];
+                    rgba1 = colors[i];
 
-                        sL = x2L (r2X (rgba0)),
-                        eL = x2L (r2X (rgba1)),
+                    sL = x2L (r2X (rgba0));
+                    eL = x2L (r2X (rgba1));
 
-                        iL = p * sL[L_STAR] + q * eL[L_STAR],
-                        ia = p * sL[A_STAR] + q * eL[A_STAR],
-                        ib = p * sL[B_STAR] + q * eL[B_STAR],
-                        al = p * rgba0[ALPHA] + q * rgba1[ALPHA];
+                    iL = p * sL[L_STAR] + q * eL[L_STAR];
+                    ia = p * sL[A_STAR] + q * eL[A_STAR];
+                    ib = p * sL[B_STAR] + q * eL[B_STAR];
+                    al = p * rgba0[ALPHA] + q * rgba1[ALPHA];
 
                     return x2R (l2X ([iL, ia, ib, al]));
                 }
 
                 else if (i == n) {
-                    var a = (i - 1) / n,
-                        b = 1,
-                        q = (v - a) / (b - a),
-                        p = 1 - q,
-                        rgba0 = colors[i - 1],
-                        rgba1 = [includeR, includeG, includeB, includeA],
+                    a = (i - 1) / n;
+                    b = 1;
+                    q = (v - a) / (b - a);
+                    p = 1 - q;
+                    rgba0 = colors[i - 1];
+                    rgba1 = [includeR, includeG, includeB, includeA];
 
-                        sL = x2L (r2X (rgba0)),
-                        eL = x2L (r2X (rgba1)),
+                    sL = x2L (r2X (rgba0));
+                    eL = x2L (r2X (rgba1));
 
-                        iL = Math.round (p * sL[L_STAR] + q * eL[L_STAR]),
-                        ia = Math.round (p * sL[A_STAR] + q * eL[A_STAR]),
-                        ib = Math.round (p * sL[B_STAR] + q * eL[B_STAR]),
-                        al = Math.round (p * rgba0[ALPHA] + q * rgba1[ALPHA]);
+                    iL = Math.round (p * sL[L_STAR] + q * eL[L_STAR]);
+                    ia = Math.round (p * sL[A_STAR] + q * eL[A_STAR]);
+                    ib = Math.round (p * sL[B_STAR] + q * eL[B_STAR]);
+                    al = Math.round (p * rgba0[ALPHA] + q * rgba1[ALPHA]);
 
                     return x2R (l2X ([iL, ia, ib, al]));
                 }

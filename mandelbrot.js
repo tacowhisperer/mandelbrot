@@ -502,8 +502,7 @@ function toReadableTime (ms, noShowDecimal) {
 
     var exeMS = Math.round (1000 * exeSeconds);
     return (d? d + 'd ' : '') + (h? h + 'h ' : '') + (m? m + 'm ' : '') + s + 's' +
-        (noShowDecimal? '' : ' (' + exeMS + 'ms)' +
-        (debugETA? '\n(' + maxETA + ' max ETA ms)' + '\n(' + (maxETA / exeMS) + ' max ETA / exe Time)': ''));
+        (noShowDecimal? '' : ' (' + exeMS + 'ms)');
 }
 
 // Generates an object from the variables that need to be stored to a file
