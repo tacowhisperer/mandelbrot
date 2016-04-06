@@ -64,10 +64,10 @@ process.on ('message', function (environment) {
     console.log ('              ymax: '.cyan + ymax);
     console.log ('      maxMagnitude: '.cyan + maxMagnitude);
     console.log ('        iterations: '.cyan + iterations + ' per pixel');
-    console.log ('          includeR: '.cyan + includeR);
-    console.log ('          includeG: '.cyan + includeG);
-    console.log ('          includeB: '.cyan + includeB);
-    console.log ('          includeA: '.cyan + includeA);
+    console.log ('          includeR: '.cyan + '0x' + includeR.toString (16));
+    console.log ('          includeG: '.cyan + '0x' + includeG.toString (16));
+    console.log ('          includeB: '.cyan + '0x' + includeB.toString (16));
+    console.log ('          includeA: '.cyan + '0x' + includeA.toString (16));
     console.log ('    escapeGradient: '.cyan + '[' + escapeGradient + ']');
 
     // Save the new cursor location if on Windows to avoid clusterfuck of logging
