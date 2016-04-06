@@ -314,9 +314,8 @@ var previousPercent = 0,
     previousSpeed   = 0,
     averageSpeed    = 0,
     previousTime    = 0,
-    etaMSHi = 0,
+    numTimeSamples = 0,
     etaMS   = 0,
-    etaMSLo = Infinity,
     time0 = 0;
 
     // Add placeholders for the mandyPercent array
@@ -377,19 +376,16 @@ function calculateMandelbrotSet () {
 
             // Calculate ETA using exponential decay algorithm
             averageSpeed = SMOOTHING_FACTOR * speed + (1 - SMOOTHING_FACTOR) * averageSpeed;
+            // averageSpeed = speed / (numTimeSamples + 1) + averageSpeed / (numTimeSamples + 1);
             etaMS = (100 - percentNum) / averageSpeed;
 
-            // Use PERT ETA to lower extreme variation in time
-            if (etaMS > etaMSHi) etaMSHi = etaMS;
-            if (etaMS < etaMSLo) etaMSLo = etaMS;
-
-            var pertETA = (etaMSLo + 4 * etaMS + etaMSHi) / 6;
             calculatingMandyLA.anim[initMessageLen] = percent;
-            calculatingMandyLA.anim[initMessageLen + 2] = toReadableTime (pertETA, true) + ' ETA';
+            calculatingMandyLA.anim[initMessageLen + 2] = toReadableTime (etaMS, true) + ' ETA';
 
             // Store the values for the next calculation
             previousPercent = percentNum;
             previousSpeed = speed;
+            numTimeSamples++;
         }
 
         else if (mu === 'packing') {
