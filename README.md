@@ -44,4 +44,4 @@ For the default image with default settings, do not save preferences.
 ## About and Licensing
 All code defined in this project is free to use as you see fit. All that I ask for is credit where credit is due, but it is not imperative as long as that code does not come from the `ColorGradient` object (color space functions were borrowed from http://easyrgb.com).
 
-THIS IMPLEMENTATION IS AS-IS, AND COMES WITH NO WARRANTY OF ANY KIND. IT IS SIMPLY A PASSTIME THAT HAPPENS TO BE ALRIGHT AT GENERATING THE MANDELBROT SET IN PNG AND HTML FORMAT.
+THIS IMPLEMENTATION IS AS-IS, AND COMES WITH NO WARRANTY OF ANY KIND. IT IS SIMPLY A PASTIME THAT HAPPENS TO BE ALRIGHT AT GENERATING THE MANDELBROT SET IN PNG AND HTML FORMAT.
